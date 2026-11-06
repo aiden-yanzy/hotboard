@@ -1,11 +1,19 @@
 name: docker
 
 # 构建三个镜像（web / api / collector）并推到 GHCR，amd64 + arm64 双架构。
-# 服务器部署只需要 docker-compose.yml + .env，pull 下来即可，无需源码和构建环境。
+#
+# 关键设计：**每个架构用对应的原生 runner 构建，再合并成多架构 manifest**。
+#   - amd64 → ubuntu-latest（x86 原生）
+#   - arm64 → ubuntu-24.04-arm（ARM 原生 runner，公开仓库免费）
+#
+# 为什么不一步到位写 `platforms: linux/amd64,linux/arm64`：
+#   那样 arm64 要在 x86 runner 上走 QEMU 模拟。web 是 Node 项目（npm ci 装 sharp 等
+#   原生模块），实测模拟构建跑了 **59 分钟仍未结束**，只能取消。换原生 runner 后
+#   每个架构都是原生速度，整体几分钟出结果。
 #
 # 触发：
-#   - push 到 main（文档改动除外）→ 推 latest + sha-xxxxxxx
-#   - 打 tag v1.2.3              → 额外推 v1.2.3 / 1.2 / 1
+#   - push 到 main（文档改动除外）→ latest + sha-xxxxxxx
+#   - 打 tag v1.2.3              → 额外产 v1.2.3 / 1.2 / 1
 #   - 手动 workflow_dispatch
 
 on:
@@ -23,32 +31,28 @@ env:
   REGISTRY: ghcr.io
 
 jobs:
+  # ---------- 阶段一：每个服务 × 每个架构，各自在原生 runner 上单架构构建 ----------
   build:
-    name: ${{ matrix.name }}
-    runs-on: ubuntu-latest
+    name: ${{ matrix.service.name }} / ${{ matrix.arch.name }}
+    runs-on: ${{ matrix.arch.runner }}
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - name: web
-            context: apps/web-astro
-          - name: api
-            context: apps/api
-          - name: collector
-            context: jobs/collector
+        service:
+          - { name: web, context: apps/web-astro }
+          - { name: api, context: apps/api }
+          - { name: collector, context: jobs/collector }
+        arch:
+          - { name: amd64, runner: ubuntu-latest }
+          - { name: arm64, runner: ubuntu-24.04-arm }
 
     steps:
       - uses: actions/checkout@v4
 
-      # arm64 镜像在 amd64 runner 上靠 QEMU 模拟
-      - name: Set up QEMU
-        uses: docker/setup-qemu-action@v3
-
-      - name: Set up Buildx
-        uses: docker/setup-buildx-action@v3
+      - uses: docker/setup-buildx-action@v3
 
       - name: Login GHCR
         uses: docker/login-action@v3
@@ -57,11 +61,13 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Tags & labels
+      - name: Tags & labels（带 -amd64 / -arm64 后缀）
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.name }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+          flavor: |
+            suffix=-${{ matrix.arch.name }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
@@ -69,13 +75,70 @@ jobs:
             type=semver,pattern={{major}}.{{minor}}
             type=semver,pattern={{major}}
 
-      - name: Build & push
+      - name: Build & push（单架构）
         uses: docker/build-push-action@v6
         with:
-          context: ${{ matrix.context }}
-          platforms: linux/amd64,linux/arm64
+          context: ${{ matrix.service.context }}
+          platforms: linux/${{ matrix.arch.name }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=gha,scope=${{ matrix.name }}
-          cache-to: type=gha,scope=${{ matrix.name }},mode=max
+          cache-from: type=gha,scope=${{ matrix.service.name }}-${{ matrix.arch.name }}
+          cache-to: type=gha,scope=${{ matrix.service.name }}-${{ matrix.arch.name }},mode=max
+
+  # ---------- 阶段二：把两个单架构 digest 合并成一个多架构 manifest ----------
+  merge:
+    name: merge / ${{ matrix.service.name }}
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        service:
+          - { name: web }
+          - { name: api }
+          - { name: collector }
+
+    steps:
+      - name: Login GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Tags & labels（不带架构后缀的正式 tag）
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+          tags: |
+            type=raw,value=latest,enable={{is_default_branch}}
+            type=sha,prefix=sha-,format=short
+            type=semver,pattern={{version}}
+            type=semver,pattern={{major}}.{{minor}}
+            type=semver,pattern={{major}}
+
+      - name: 合并多架构 manifest
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          set -euo pipefail
+          echo "$TAGS" | tr ',' '\n' | while read -r tag; do
+            [ -z "$tag" ] && continue
+            ref="${tag##*:}"
+            echo "→ $IMAGE:$ref"
+            docker buildx imagetools create \
+              -t "$IMAGE:$ref" \
+              "$IMAGE:${ref}-amd64" \
+              "$IMAGE:${ref}-arm64"
+          done
+
+      - name: 校验（应看到 linux/amd64 + linux/arm64 两个平台）
+        env:
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+        run: docker buildx imagetools inspect "$IMAGE:latest" | head -40
