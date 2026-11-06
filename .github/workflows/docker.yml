@@ -1,6 +1,7 @@
 name: docker
 
 # 构建三个镜像（web / api / collector）并推到 GHCR，amd64 + arm64 双架构。
+# 镜像地址：ghcr.io/<owner>/hotboard/{web,api,collector}（三个包归在 hotboard 命名空间下）
 #
 # 关键设计：**每个架构用对应的原生 runner 构建，再合并成多架构 manifest**。
 #   - amd64 → ubuntu-latest（x86 原生）
@@ -65,7 +66,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard/${{ matrix.service.name }}
           flavor: |
             suffix=-${{ matrix.arch.name }}
           tags: |
@@ -114,7 +115,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+          images: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard/${{ matrix.service.name }}
           tags: |
             type=raw,value=latest,enable={{is_default_branch}}
             type=sha,prefix=sha-,format=short
@@ -124,7 +125,7 @@ jobs:
 
       - name: 合并多架构 manifest
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard/${{ matrix.service.name }}
           TAGS: ${{ steps.meta.outputs.tags }}
         run: |
           set -euo pipefail
@@ -140,5 +141,5 @@ jobs:
 
       - name: 校验（应看到 linux/amd64 + linux/arm64 两个平台）
         env:
-          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard-${{ matrix.service.name }}
+          IMAGE: ${{ env.REGISTRY }}/${{ github.repository_owner }}/hotboard/${{ matrix.service.name }}
         run: docker buildx imagetools inspect "$IMAGE:latest" | head -40

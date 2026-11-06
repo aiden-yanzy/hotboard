@@ -11,14 +11,14 @@ services:
   api:
     build:
       context: ./apps/api
-    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-api:${HOTBOARD_TAG:-local}
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy/hotboard}/api:${HOTBOARD_TAG:-local}
 
   web:
     build:
       context: ./apps/web-astro
-    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-web:${HOTBOARD_TAG:-local}
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy/hotboard}/web:${HOTBOARD_TAG:-local}
 
   collector:
     build:
       context: ./jobs/collector
-    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-collector:${HOTBOARD_TAG:-local}
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy/hotboard}/collector:${HOTBOARD_TAG:-local}
