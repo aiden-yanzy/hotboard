@@ -1,0 +1,24 @@
+---
+/** 设置页：外观 / 自动刷新 / 数据源显隐排序（全部存本机 localStorage） */
+import Base from "../layouts/Base.astro";
+import SettingPanel from "../components/SettingPanel.vue";
+import { getSources } from "../lib/api";
+
+const data = await getSources();
+const categories = data?.categories ?? [];
+
+const sources = (data?.sources ?? []).map((s) => ({
+  name: s.label || s.name,
+  label: s.label || s.name,
+  category: s.category || "其他",
+}));
+---
+
+<Base
+  title="设置 - 热辣榜"
+  description="自定义热辣榜的外观、自动刷新间隔和数据源显隐排序。"
+  categories={categories}
+  activeCategory=""
+>
+  <SettingPanel sources={sources} client:load />
+</Base>

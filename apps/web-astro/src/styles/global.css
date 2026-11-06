@@ -1,0 +1,169 @@
+:root {
+  --brand: #ff5722;
+  --brand-soft: #fff3ef;
+  --text: #222;
+  --text-2: #666;
+  --text-3: #999;
+  --border: #ececec;
+  --bg: #fff;
+  --radius: 10px;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 15px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+}
+
+/* 榜单卡片网格 */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+  gap: 16px;
+}
+
+.card {
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 14px 16px;
+  background: #fff;
+  transition: box-shadow 0.2s, transform 0.2s;
+}
+
+.card:hover {
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+}
+
+.card-title {
+  font-weight: 600;
+  font-size: 15px;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.card-title:hover {
+  color: var(--brand);
+}
+
+.card-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+/* 榜单条目 */
+.hot-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.hot-item {
+  display: flex;
+  gap: 8px;
+  padding: 6px 0;
+  border-bottom: 1px dashed #f2f2f2;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.hot-item:last-child {
+  border-bottom: none;
+}
+
+.hot-rank {
+  flex: 0 0 20px;
+  color: var(--text-3);
+  font-variant-numeric: tabular-nums;
+  font-size: 13px;
+}
+
+.hot-rank.top {
+  color: var(--brand);
+  font-weight: 700;
+}
+
+.hot-link {
+  color: var(--text);
+  text-decoration: none;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+.hot-link:hover {
+  color: var(--brand);
+}
+
+.hot-heat {
+  flex: 0 0 auto;
+  color: var(--text-3);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+/* 分类标签 */
+.cats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 16px 0 20px;
+}
+
+.cat {
+  padding: 5px 14px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  font-size: 13px;
+  text-decoration: none;
+  color: var(--text-2);
+  background: #fff;
+}
+
+.cat:hover,
+.cat.active {
+  border-color: var(--brand);
+  color: var(--brand);
+  background: var(--brand-soft);
+}
+
+h1 {
+  font-size: 22px;
+  margin: 8px 0 4px;
+}
+
+.sub {
+  color: var(--text-2);
+  font-size: 13px;
+  margin-bottom: 16px;
+}
+
+.empty {
+  padding: 40px;
+  text-align: center;
+  color: var(--text-3);
+}

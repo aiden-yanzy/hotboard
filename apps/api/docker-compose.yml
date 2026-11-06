@@ -1,0 +1,21 @@
+# hotboard-api：热榜聚合站自己的只读接口（读 hotdb，不写库）
+# 前端只打这个服务，不再直连第三方源站/API
+services:
+  hotapi:
+    build: .
+    image: hotapi:local
+    container_name: hotapi
+    restart: unless-stopped
+    ports:
+      - "6700:6700"          # 前端（VITE_GLOBAL_API）指向这里
+    env_file: .env
+    environment:
+      DB_HOST: hotdb         # 通过 hotdb 的 compose 网络直连容器名
+      DB_PORT: "5432"
+    networks:
+      - hotdb_net
+
+networks:
+  hotdb_net:
+    external: true
+    name: hotdb_default

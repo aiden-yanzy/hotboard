@@ -1,0 +1,138 @@
+# ============================================================
+# 热榜平台 · 部署编排（**只要这个文件 + .env，不需要源码**）
+# ------------------------------------------------------------
+# 三步起站：
+#   ① 安装 Docker（含 compose 插件）
+#   ② 准备两个文件：docker-compose.yml + .env（从 .env.example 复制后填）
+#   ③ docker compose up -d
+#
+# 镜像由 GitHub Actions 构建（amd64 + arm64 双架构）推到 GHCR，
+# 服务器本地**不需要** Node / Python / 构建工具，也不需要源码目录。
+#
+# 想从源码构建？叠加 build override：
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# 设计要点：
+#   ① 服务间用**服务名**互访：web → api → db；collector → db
+#   ② 持久化数据都在 ${HOTBOARD_DATA_DIR} 下 → 换机器只搬这一个目录
+#   ③ web 容器直接对外并内部反代 /api → api:6700，前端用相对路径 /api，无 CORS
+#   ④ 端口/密码/镜像 tag 全部来自 .env，compose 里不写死
+#   ⑤ 采集器首次启动自动建表 + 灌源 + 应用分类/排序种子（幂等），无需手工初始化
+# ============================================================
+name: hotboard
+
+# 镜像仓库与版本：默认 GHCR 的 latest，生产建议在 .env 里固定 HOTBOARD_TAG
+services:
+  # ---------- PostgreSQL ----------
+  db:
+    image: postgres:16
+    container_name: hotboard-db
+    restart: unless-stopped
+    # 显式以 postgres 用户运行（debian 版 UID=999）：
+    #   官方 entrypoint 默认 root 启动再 gosu 降权，在部分宿主机（如 CentOS 7 老内核）
+    #   降权后写数据目录会报 "could not write to file postmaster.pid: Operation not permitted"。
+    #   直接 --user 跳过降权即可；此时数据目录属主必须是 UID 999。
+    user: "999:999"
+    ports:
+      # 默认只绑本机；云上要么删掉这段，要么改成 0.0.0.0（配合防火墙）
+      - "127.0.0.1:${HOTBOARD_DB_PORT:-5433}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-hotboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?请在 .env 里设置 POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:-hotboard}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --locale=C"
+      TZ: ${TZ:-Asia/Shanghai}
+      PGTZ: ${TZ:-Asia/Shanghai}
+    command: ["postgres", "-c", "timezone=Asia/Shanghai", "-c", "log_timezone=Asia/Shanghai"]
+    volumes:
+      - ${HOTBOARD_DATA_DIR}/pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-hotboard} -d ${POSTGRES_DB:-hotboard}"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+
+  # ---------- 聚合接口：前端唯一的后端（只读库，不写） ----------
+  api:
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-api:${HOTBOARD_TAG:-latest}
+    container_name: hotboard-api
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${HOTBOARD_API_PORT:-6700}:6700"
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      POSTGRES_USER: ${POSTGRES_USER:-hotboard}
+      POSTGRES_DB: ${POSTGRES_DB:-hotboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      ENGINE_WHITELIST: ${ENGINE_WHITELIST:-custom}
+      TZ: ${TZ:-Asia/Shanghai}
+    depends_on:
+      db:
+        condition: service_healthy
+
+  # ---------- 前端：Astro SSR（standalone Node 服务） ----------
+  web:
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-web:${HOTBOARD_TAG:-latest}
+    container_name: hotboard-web
+    restart: unless-stopped
+    environment:
+      - HOST=0.0.0.0
+      - PORT=80
+      # 容器内直连 api 服务（同一 compose 网络）
+      - API_BASE=http://api:6700
+      # 关掉代理，否则容器内本地请求会走宿主代理
+      - NO_PROXY=127.0.0.1,localhost,api
+      # ── 站点个性化内容（备案号 / 广告位 / 友链 / 域名）──────────────
+      # 留空则对应模块不渲染；开源仓库里 site.ts 保持占位符，靠 .env 注入
+      - SITE_URL=${SITE_URL:-}
+      - SITE_ICP_TEXT=${SITE_ICP_TEXT:-}
+      - SITE_ICP_URL=${SITE_ICP_URL:-https://beian.miit.gov.cn/}
+      - SITE_POLICE_TEXT=${SITE_POLICE_TEXT:-}
+      - SITE_POLICE_URL=${SITE_POLICE_URL:-}
+      - SITE_AD_URL=${SITE_AD_URL:-}
+      - SITE_AD_IMG=${SITE_AD_IMG:-}
+      - SITE_AD_ALT=${SITE_AD_ALT:-广告}
+      - SITE_AD_TEXT=${SITE_AD_TEXT:-}
+      - SITE_LINKS=${SITE_LINKS:-}
+    ports:
+      - "${HOTBOARD_WEB_PORT:-6600}:80"
+    depends_on:
+      - api
+
+  # ---------- 采集器 ----------
+  #   云端：COLLECT_CMD=--loop --interval 1800 → 常驻自跑（首轮自动初始化库）
+  #   本机：COLLECT_CMD 留空 → 容器空闲待命，由外部 cron 触发 docker exec
+  collector:
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-collector:${HOTBOARD_TAG:-latest}
+    container_name: hotboard-collector
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - |
+        if [ -n "$$COLLECT_CMD" ]; then
+          echo "▶ 采集器常驻模式：$$COLLECT_CMD"; exec python collect.py $$COLLECT_CMD
+        else
+          echo "⏸ 采集器待命（由外部 cron 触发：docker exec hotboard-collector python collect.py）"; exec sleep infinity
+        fi
+    environment:
+      DB_HOST: db
+      DB_PORT: "5432"
+      DB_NAME: ${POSTGRES_DB:-hotboard}
+      DB_USER: ${POSTGRES_USER:-hotboard}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?}
+      # 源已全部自研化，外部上游默认停用。
+      # 注意必须用 `:-` 空默认：写成 `${VAR:-http://engine:6688}` 时，
+      # .env 里的空值会被视作"未设置"→ 又填回默认值（当天踩过这个坑）。
+      ENGINE_DAILYHOT_URL: ${ENGINE_DAILYHOT_URL:-}
+      ENGINE_NEWSNOW_URL: ${ENGINE_NEWSNOW_URL:-}
+      ENGINE_WHITELIST: ${ENGINE_WHITELIST:-custom}
+      COLLECT_CMD: ${COLLECT_CMD:-}
+      COLLECT_INTERVAL_SEC: ${COLLECT_INTERVAL_SEC:-1800}
+      TZ: ${TZ:-Asia/Shanghai}
+    volumes:
+      - ${HOTBOARD_DATA_DIR}/collector-logs:/app/logs
+    depends_on:
+      db:
+        condition: service_healthy

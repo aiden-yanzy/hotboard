@@ -1,0 +1,90 @@
+/**
+ * naive-ui 变量垫片 —— 原站这些值是 naive-ui 运行时注入的，
+ * 我们不走 ThemeProvider，就手动定义等价的一套（浅色 / 深色），
+ * 这样从 List.vue 提取的 745 行 SCSS 能原样生效。
+ */
+
+:root {
+  --n-border-color: #efeff5;
+  --n-color: #ffffff;
+  --n-text-color: #333639;
+  --n-text-color-2: #494949;
+  --n-text-color-3: #8f8f8f;
+  --n-action-color: rgba(128, 128, 128, 0.06);
+  --n-close-color-hover: #333639;
+
+  /* 站点品牌色 */
+  --brand: #ff5722;
+  --brand-soft: #fff3ef;
+}
+
+/* 深色主题：往 <html> 上加 .dark 类切换 */
+html.dark {
+  --n-border-color: rgba(255, 255, 255, 0.09);
+  --n-color: #18181c;
+  --n-text-color: rgba(255, 255, 255, 0.82);
+  --n-text-color-2: rgba(255, 255, 255, 0.82);
+  --n-text-color-3: rgba(255, 255, 255, 0.52);
+  --n-action-color: rgba(255, 255, 255, 0.06);
+  --n-close-color-hover: #ffffff;
+
+  --brand-soft: rgba(255, 87, 34, 0.14);
+  background: #101014;
+  color: rgba(255, 255, 255, 0.82);
+}
+
+/* 暗色下 body / 滚动条 / 选中态也要跟上，否则四周还是白的 */
+html.dark body {
+  background: #101014 !important;
+  color: rgba(255, 255, 255, 0.82);
+}
+html.dark ::-webkit-scrollbar {
+  background: #18181c;
+}
+html.dark ::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.18);
+  border-radius: 3px;
+}
+html.dark ::selection {
+  background: rgba(255, 87, 34, 0.35);
+}
+
+body {
+  margin: 0;
+  background: var(--n-color);
+  color: var(--n-text-color);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB",
+    "Microsoft YaHei", "Helvetica Neue", Arial, sans-serif;
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+/* ============ 模块配色统一（对标知乎/rebang）============
+   页面底色用浅灰，所有内容模块用白底卡片 →
+   视觉上「空白处是浅灰、模块是白色」，层次自然凸显。
+   暗色反过来：页面更深，模块稍亮一层。 */
+:root {
+  --page-bg: #f4f5f7;   /* 页面底色（浅灰） */
+  --n-color: #ffffff;   /* 模块白底（已经是） */
+}
+html.dark {
+  --page-bg: #0d0d10;   /* 暗色页面底（更深） */
+  --n-color: #18181c;   /* 暗色模块底（亮一档，靠对比凸显） */
+}
+
+body {
+  background: var(--page-bg);
+}
+html.dark body {
+  background: var(--page-bg) !important;
+}

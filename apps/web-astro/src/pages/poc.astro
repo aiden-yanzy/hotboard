@@ -1,0 +1,18 @@
+---
+/** 技术验证页：naive-ui 组件在 Astro SSR 下能否正常输出 HTML（与样式）。 */
+import PocCard from "../components/PocCard.vue";
+
+const items = ["测试条目一：知乎热榜第一条", "测试条目二：微博热搜第二条", "测试条目三：百度热点第三条"];
+---
+
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <title>PoC: naive-ui + Astro SSR</title>
+  </head>
+  <body style="padding:20px;font-family:sans-serif">
+    <h1>naive-ui SSR PoC</h1>
+    <p>下面这个卡片是 Vue 组件（naive-ui），由 Astro 在服务端渲染：</p>
+    <PocCard title="知乎热榜" count={items.length} items={items} />
+  </body>
+</html>

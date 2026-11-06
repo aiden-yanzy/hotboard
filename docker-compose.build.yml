@@ -1,0 +1,24 @@
+# ============================================================
+# 本地开发 / 自行构建用的 override（**部署不需要这个文件**）
+# ------------------------------------------------------------
+# 用法（在源码目录内）：
+#   docker compose -f docker-compose.yml -f docker-compose.build.yml up -d --build
+#
+# 作用：把三个服务的 image 换成本地构建，构建上下文指向各自目录。
+# 生产的 docker-compose.yml 只认 GHCR 上的镜像，两者互不影响。
+# ============================================================
+services:
+  api:
+    build:
+      context: ./apps/api
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-api:${HOTBOARD_TAG:-local}
+
+  web:
+    build:
+      context: ./apps/web-astro
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-web:${HOTBOARD_TAG:-local}
+
+  collector:
+    build:
+      context: ./jobs/collector
+    image: ${HOTBOARD_REGISTRY:-ghcr.io/aiden-yanzy}/hotboard-collector:${HOTBOARD_TAG:-local}

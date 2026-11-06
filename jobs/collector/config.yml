@@ -1,0 +1,89 @@
+# 热榜采集器配置（P2）
+# ⭐ 可插拔：引擎地址只在这里出现一次。要下线 dailyhot：
+#     ① 把 engines.dailyhot.base_url 置空（或停它的容器）→ 该引擎的源整批跳过，其余照常
+#     ② 或把库里 sources.engine='dailyhot' 的行 enabled=false（更彻底，历史数据不动）
+db:
+  host: 127.0.0.1
+  port: 5433
+  dbname: hotboard
+  user: hotboard
+  # 密码不写这里：从 ~/Docker/hotdb/.env 读取（POSTGRES_PASSWORD）
+
+engines:
+  dailyhot:
+    # ⏹️ 2026-10-19 P2：dailyhot 的 50 个源**已全部移植**为自研适配器（engine='custom'），
+    #    这里置空 = 采集器整批跳过（库里的历史数据保留，只停增量）。
+    #    恢复：填回 "http://127.0.0.1:6688"，并把 .env 的 ENGINE_WHITELIST 加回 dailyhot。
+    base_url: ""
+    path: "/{src}"                       # GET /zhihu
+    timeout: 25
+    # 头图（cover）：上游多数返回绝对 URL；**少数派的 banner 是相对路径**，需补前缀
+    #   （2026-10-10 实测：50 源里 33 个有头图，仅 sspai 为相对路径）
+    #   ⚠️ P2 后这些源都走 custom 适配器，cover 由适配器自己给绝对 URL，此表仅作历史保留
+    cover_base:
+      sspai: "https://cdn.sspai.com/"
+  newsnow:
+    # ⏹️ 2026-10-10 用户决定：**暂停 newsnow 引擎**（2026-10-19 其源已 100% 迁完，永久停用）
+    #    原因：① newsnow 的知乎等源**上限只给 20 条**（写死在它代码里，源站实际 30 条）；
+    #          ② 它的源粒度与 dailyhot 不一致（一个站拆多个子源）。
+    #    做法：base_url 置空 → 采集器整批跳过该引擎（库里历史数据保留）
+    #    恢复：填回 "http://127.0.0.1:4444"，并把 .env 的 ENGINE_WHITELIST 加上 newsnow
+    base_url: ""
+    path: "/api/s?id={src}"
+    timeout: 25
+
+rate:
+  max_per_second: 1.0     # 礼貌抓取：全局限速（两引擎的容器自己还有 30min 缓存）
+  retries: 1              # 失败重试次数（不轰炸源站）
+  retry_wait: 4           # 重试前等待秒数
+
+# ---- 安全策略（2026-10-19 加固）----
+#   respect_robots: 按域缓存源站 robots.txt，Disallow 的 URL 直接跳过并记 last_err（合规）
+#     ⚠️ 取不到 robots（超时/404）视为**放行**（fail-open），否则半个互联网都抓不了
+#   ⏹️ 2026-10-19 用户决策 = **C：全关**（respect_robots: false）
+#     审计依据（实测 dry-run）：开启后有 12 个源被 Disallow: / 挡住（68 → 56），
+#     其中包含我们仅有的 5 个有真热度的源：知乎/快手/B站/微博/腾讯新闻；
+#     另 7 个：51CTO / 数字尾巴 / 历史上的今天 / 虎扑 / 虎嗅 / 牛客 / 知乎日报。
+#     取舍：国内站 robots 的 Disallow 主要针对搜索引擎爬虫，与"榜单聚合（只读公开榜单、
+#     只存标题+链接+短摘要、每源 48 次/天、不转全文）"无关 → 用户选择覆盖优先。
+#     恢复合规：把 respect_robots 改回 true 即可（机制与白名单都留着，无需改代码）。
+#   robots_allowlist: 仅在 respect_robots=true 时生效——对指定 src_id 显式豁免（可审计）
+#   backoff_*: 源站返回 429/403 时**不重试**，把该源冷却一段时间（首轮 base，逐次翻倍，封顶 max）
+#     冷却状态存在库表 source_backoff（重启不丢；冷却期内该源本轮跳过，不计错误）
+safety:
+  respect_robots: false
+  robots_allowlist: []
+  backoff_base_min: 30
+  backoff_max_hours: 24
+
+# ---- P3 加工层 LLM 通道（按顺序尝试：第一个失败自动切下一个 = 兜底）----
+# 背景（2026-10-10 实测）：octopus 里的渠道多为兜底来源，CommandCode 0 成功/8 失败、
+# 黑白-svip 739 成功/648 失败（≈47% 挂）→ 不适合当无人值守日报的唯一通道。
+# 故：**主通道走直连 deepseek，octopus 降级为兜底**。
+# ---- 2026-10-12 用户决定：**移除日报** → 原 llm: / digest: 两段配置已删除 ----
+#      （连同 jobs/collector/digest.py、schema_digest.sql、cron 的 08:05 任务一并下线）
+
+bootstrap:
+  # 2026-11-06：dailyhot / newsnow 两个外部引擎早已移除（ENGINE_WHITELIST=custom），
+  # 这里原来列的 61 个源（dailyhot 31 + newsnow 30）在新库上会被照样插进去，
+  # 变成"从未成功、0 数据"的残留行，还会把分类统计撑虚。
+  # 源清单现在**唯一来源是 adapters/ 目录**（bootstrap_sources 自动扫描），
+  # 需要新增源就往 adapters/ 里加文件，不要在这里列。
+  custom: []
+
+# ---------------------------------------------------------------- 不可达源
+# 这些源从本服务器访问不到，不列出、不采集（enabled=false）。
+# 什么时候可以加回来：换到能出境的机器 / 换 IP / 该站解除 WAF 后，删掉对应行即可。
+#
+#   v2ex / nodeseek / hackernews / nytimes —— 服务器在国内，境外站 8s 超时
+#   52pojie    —— IP 级 WAF 封禁（reason:UrlACL，连首页都 403）
+#   coolapk    —— API 需要 App 签名 token，直连 403
+#   freebuf    —— 阿里云 WAF JS 挑战页，静态请求拿不到内容
+disabled_sources:
+  - v2ex
+  - nodeseek
+  - hackernews
+  - nytimes
+  - 52pojie
+  - coolapk
+  - freebuf

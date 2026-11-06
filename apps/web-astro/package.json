@@ -1,0 +1,25 @@
+{
+  "name": "web-astro",
+  "type": "module",
+  "version": "0.0.1",
+  "engines": {
+    "node": ">=22.23.4"
+  },
+  "scripts": {
+    "dev": "astro dev",
+    "build": "astro build",
+    "preview": "astro preview",
+    "astro": "astro"
+  },
+  "dependencies": {
+    "@astrojs/node": "^11.1.9",
+    "@astrojs/vue": "^7.1.2",
+    "@icon-park/vue-next": "^1.4.2",
+    "astro": "^7.4.5",
+    "naive-ui": "^2.45.3",
+    "vue": "^3.5.44"
+  },
+  "devDependencies": {
+    "sass": "^1.107.1"
+  }
+}

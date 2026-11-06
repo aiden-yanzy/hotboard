@@ -1,0 +1,123 @@
+diff --git a/src/routes/52pojie.ts b/src/routes/52pojie.ts
+index 6e252a7..48d0216 100644
+--- a/src/routes/52pojie.ts
++++ b/src/routes/52pojie.ts
+@@ -56,6 +56,7 @@ const getList = async (options: Options, noCache: boolean): Promise<RouterResTyp
+       author: v.author,
+       timestamp: getTime(v.pubDate || 0),
+       hot: undefined,
++      cover: v.cover, // 2026-10-12 补：RSS 源封面
+       url: v.link || "",
+       mobileUrl: v.link || "",
+     })),
+diff --git a/src/routes/hostloc.ts b/src/routes/hostloc.ts
+index eb64ddf..f0be3ab 100644
+--- a/src/routes/hostloc.ts
++++ b/src/routes/hostloc.ts
+@@ -51,6 +51,7 @@ const getList = async (options: Options, noCache: boolean) => {
+       author: v.author || "",
+       timestamp: getTime(v.pubDate || 0),
+       hot: undefined,
++      cover: v.cover, // 2026-10-12 补：RSS 源封面
+       url: v.link || "",
+       mobileUrl: v.link || "",
+     })),
+diff --git a/src/routes/ifanr.ts b/src/routes/ifanr.ts
+index 447b185..6f47afc 100644
+--- a/src/routes/ifanr.ts
++++ b/src/routes/ifanr.ts
+@@ -41,6 +41,8 @@ const getList = async (noCache: boolean) => {
+       id: v.id,
+       title: v.post_title,
+       desc: v.post_content,
++      // 2026-10-12 补：从正文 HTML 里抽第一张图当封面（此前完全没有封面）
++      cover: /<img[^>]+src=["']([^"']+)["']/i.exec(v.post_content || "")?.[1],
+       timestamp: getTime(v.created_at),
+       hot: v.like_count || v.comment_count,
+       url: v.buzz_original_url || `https://www.ifanr.com/${v.post_id}`,
+diff --git a/src/routes/linuxdo.ts b/src/routes/linuxdo.ts
+index 09557c0..423aba5 100644
+--- a/src/routes/linuxdo.ts
++++ b/src/routes/linuxdo.ts
+@@ -41,8 +41,9 @@ const getList = async (noCache: boolean) => {
+       url: link,
+       mobileUrl: link,
+       hot: undefined,
+-    };
+-  });
++      cover: item.cover, // 2026-10-12 补：RSS 源封面
++      };
++      });
+ 
+   return {
+     ...result,
+diff --git a/src/routes/nodeseek.ts b/src/routes/nodeseek.ts
+index c7eaf47..640c645 100644
+--- a/src/routes/nodeseek.ts
++++ b/src/routes/nodeseek.ts
+@@ -37,6 +37,7 @@ const getList = async (noCache: boolean) => {
+       author: v.author,
+       timestamp: getTime(v.pubDate || 0),
+       hot: undefined,
++      cover: v.cover, // 2026-10-12 补：RSS 源封面
+       url: v.link || "",
+       mobileUrl: v.link || "",
+     })),
+diff --git a/src/routes/nytimes.ts b/src/routes/nytimes.ts
+index 9e44bb5..7c8a03b 100644
+--- a/src/routes/nytimes.ts
++++ b/src/routes/nytimes.ts
+@@ -52,6 +52,7 @@ const getList = async (options: Options, noCache: boolean): Promise<RouterResTyp
+       author: v.author,
+       timestamp: getTime(v.pubDate || 0),
+       hot: undefined,
++      cover: v.cover, // 2026-10-12 补：RSS 源封面
+       url: v.link || "",
+       mobileUrl: v.link || "",
+     })),
+diff --git a/src/utils/parseRSS.ts b/src/utils/parseRSS.ts
+index cdac911..a3454c7 100644
+--- a/src/utils/parseRSS.ts
++++ b/src/utils/parseRSS.ts
+@@ -13,6 +13,24 @@ export const extractRss = (content: string): string | null => {
+   return matches ? matches[0] : null;
+ };
+ 
++/**
++ * 从 RSS 条目里挑封面：优先 enclosure / media:*，其次正文 HTML 里的第一张图
++ * （2026-10-12 补：RSS 源此前完全没抽封面，导致纽约时报/吾爱破解等源在列表页没有头图）
++ */
++const pickCover = (item: any): string | undefined => {
++  const cands = [
++    item?.enclosure?.url,
++    item?.["media:thumbnail"]?.$?.url,
++    item?.["media:content"]?.$?.url,
++    item?.["itunes:image"]?.$?.href,
++  ];
++  const hit = cands.find((u) => typeof u === "string" && /^https?:\/\//.test(u));
++  if (hit) return hit as string;
++  const html: string = item?.content || item?.["content:encoded"] || item?.contentSnippet || "";
++  const m = /<img[^>]+src=["']([^"']+)["']/i.exec(html);
++  return m?.[1];
++};
++
+ /**
+  * 解析 RSS 内容
+  * @param rssContent RSS 内容
+@@ -34,7 +52,7 @@ export const parseRSS = async (rssContent: string) => {
+     const feed = isUrl(rssContent)
+       ? await parser.parseURL(rssContent)
+       : await parser.parseString(rssContent);
+-    const items = feed.items.map((item) => ({
++    const items = feed.items.map((item: any) => ({
+       title: item.title, // 文章标题
+       link: item.link, // 文章链接
+       pubDate: item.pubDate, // 发布日期
+@@ -43,6 +61,7 @@ export const parseRSS = async (rssContent: string) => {
+       contentSnippet: item.contentSnippet, // 内容摘要
+       guid: item.guid, // 全局唯一标识符
+       categories: item.categories, // 分类
++      cover: pickCover(item), // 封面（新增）
+     }));
+     // 返回解析数据
+     return items;

@@ -1,0 +1,31 @@
+# ===== 本地/云端通用：不要提交密钥、数据、依赖 =====
+.env
+.env.*
+!.env.example
+
+# 数据与运行物
+data/
+*.log
+logs/
+jobs/collector/logs/
+jobs/collector/digests/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Node
+node_modules/
+dist/
+.pnpm-store/
+
+# 编辑器/系统
+.DS_Store
+.idea/
+.vscode/
+
+# macOS 元数据（会干扰 Python 适配器加载）
+._*
+.DS_Store

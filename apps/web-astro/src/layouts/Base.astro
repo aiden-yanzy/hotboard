@@ -1,0 +1,129 @@
+---
+/**
+ * 全站骨架：SEO meta + 结构化数据 + 顶栏。
+ * 样式：board.scss（含从原 Vue 版提取的 745 行 list.scss）
+ * 备案信息在榜单页右侧栏里（不再做悬浮条）。
+ */
+import "../styles/board.scss";
+import SITE from "../config/site";
+import SiteHeader from "../components/SiteHeader.vue";
+import BackTop from "../components/BackTop.vue";
+
+interface Props {
+  title: string;
+  description?: string;
+  canonical?: string;
+  pageType?: "website" | "article";
+  items?: { title: string; url?: string }[];
+  /** 顶栏分类 */
+  categories?: string[];
+  activeCategory?: string;
+}
+
+const {
+  title,
+  description = `${SITE.name} · ${SITE.description}`,
+  canonical,
+  pageType = "website",
+  items,
+  categories = [],
+  activeCategory,
+} = Astro.props;
+
+const site = Astro.site?.toString().replace(/\/$/, "") || SITE.url;
+const canonicalURL = canonical || new URL(Astro.url.pathname, site).toString();
+const fullTitle = title.includes(SITE.name) ? title : `${title} - ${SITE.name}`;
+
+// 榜单页给搜索引擎结构化数据（ItemList 是榜单类内容的标准类型）
+const jsonLd = items?.length
+  ? {
+      "@context": "https://schema.org",
+      "@type": "ItemList",
+      name: title,
+      numberOfItems: items.length,
+      itemListElement: items.slice(0, 30).map((it, i) => ({
+        "@type": "ListItem",
+        position: i + 1,
+        name: it.title,
+        ...(it.url ? { url: it.url } : {}),
+      })),
+    }
+  : {
+      "@context": "https://schema.org",
+      "@type": "WebSite",
+      name: SITE.name,
+      url: site,
+      description,
+    };
+---
+
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/ico/favicon-32.png" />
+    <link rel="icon" type="image/png" sizes="192x192" href="/ico/favicon-192.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/ico/apple-touch-icon.png" />
+    <!--
+      缩略图来自第三方图床，每个域名都要单独 DNS + TLS 握手（手机上 2–3 个 RTT）。
+      切源时会牵出 4–6 个图床域名，握手开销叠加上去就是肉眼可见的「图慢慢出来」。
+      这里预热最常用的几个；只留 4 个，再多反而抢首屏带宽。
+    -->
+    <link rel="preconnect" href="https://picx.zhimg.com" crossorigin />
+    <link rel="preconnect" href="https://pic1.zhimg.com" crossorigin />
+    <link rel="preconnect" href="https://pica.zhimg.com" crossorigin />
+    <link rel="dns-prefetch" href="https://pic2.zhimg.com" />
+    <link rel="dns-prefetch" href="https://pic3.zhimg.com" />
+    <link rel="dns-prefetch" href="https://pic4.zhimg.com" />
+    <meta name="theme-color" content="#FF5722" />
+
+    <title>{fullTitle}</title>
+    <meta name="description" content={description} />
+    <link rel="canonical" href={canonicalURL} />
+
+    <meta property="og:type" content={pageType} />
+    <meta property="og:site_name" content={SITE.name} />
+    <meta property="og:title" content={fullTitle} />
+    <meta property="og:description" content={description} />
+    <meta property="og:url" content={canonicalURL} />
+    <meta name="twitter:card" content="summary_large_image" />
+
+    <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />
+    <script is:inline>
+      // 首屏前应用主题，避免暗色用户看到白屏闪一下
+      // 支持 ?theme=dark|light 强制指定（方便截图/调试）
+      try {
+        var forced = new URLSearchParams(location.search).get("theme");
+        var saved = localStorage.getItem("siteTheme");
+        var dark = forced ? forced === "dark" : saved === "dark";
+        if (dark) document.documentElement.classList.add("dark");
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <SiteHeader categories={categories} activeCategory={activeCategory} client:load />
+
+    <main class="site-main">
+      <slot />
+    </main>
+
+    <BackTop client:load />
+  </body>
+</html>
+
+<style>
+  /* 内容区宽度 1400 → 1240：加大两侧留白，对标知乎/rebang 的观感，
+     窄屏因为 padding 是 5vw 会自动收窄，移动端也更好看。
+     1440 视口下：内容约 1100px，左右各留 ~170px 且对称。 */
+  .site-main {
+    padding: 18px 5vw 60px;
+    max-width: 1200px;
+    margin: 0 auto;
+  }
+  @media (max-width: 768px) {
+    .site-main {
+      padding: 12px 12px 40px;
+    }
+  }
+</style>

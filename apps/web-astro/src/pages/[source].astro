@@ -1,0 +1,139 @@
+---
+/**
+ * 源站详情页 —— SEO 的核心资产。
+ * /zhihu 这样的英文 slug 会被渲染成「知乎热榜」的真内容页，
+ * 直接对应「知乎热榜」「微博热搜」这类真实搜索词。
+ */
+import Base from "../layouts/Base.astro";
+import HotBoard from "../components/HotBoard.vue";
+import { getSourceBoard, getSources, getRising, SLUG_TO_SOURCE, slugOf, logoOf, categoriesWithFollow, FOLLOW_CATEGORY } from "../lib/api";
+import SITE from "../config/site";
+
+export const prerender = false;
+
+const { source } = Astro.params;
+
+// slug 可能在映射表里，也可能是编码后的中文名
+let sourceName = SLUG_TO_SOURCE[source ?? ""] ?? "";
+if (!sourceName) {
+  try {
+    sourceName = decodeURIComponent(source ?? "");
+  } catch {
+    sourceName = source ?? "";
+  }
+}
+
+// 并行拉取：源清单 + 榜单 + 飙升榜（串行会顶到 30s 客户端超时）
+const [board, known, risingData] = await Promise.all([
+  sourceName ? getSourceBoard(sourceName) : Promise.resolve(null),
+  getSources(),
+  getRising(8, 0),
+]);
+
+const items = board?.data ?? [];
+const baseCategories = known?.categories ?? [];
+// 关注源（⚠️ 必须在 categories / catSources 之前定义）
+let followedList: string[] = [];
+try {
+  const rawCookie = Astro.cookies.get("hb_followed")?.value ?? "";
+  followedList = rawCookie ? JSON.parse(decodeURIComponent(rawCookie)) : [];
+} catch {
+  followedList = [];
+}
+const isFollowed = (n: string) => followedList.includes(n);
+
+const categories = categoriesWithFollow(baseCategories, followedList.length > 0);
+
+// SEO 关键：只有「源名根本不存在」才 404（真 404 状态码，不是 302 跳转）
+const isKnownSource = (known?.sources ?? []).some((s) => (s.name || s.label) === sourceName);
+if (!sourceName || !isKnownSource) {
+  Astro.response.status = 404;
+}
+
+const hasData = !!board && board.code === 200 && items.length > 0;
+const displayName = board?.title || sourceName || "未知";
+
+// 当前源所属分类 → chips 高亮 + 顶栏分类
+const currentSrc = (known?.sources ?? []).find((s) => (s.name || s.label) === sourceName);
+const activeCategory = currentSrc?.category || categories[0] || "综合";
+const catSources = (known?.sources ?? []).filter((s) => s.category === activeCategory);
+
+// 原版 chips 只含具体源，不含聚合项
+// 关注源置顶：读 cookie（设置页写入时镜像了一份），服务端排好序再输出，
+// 避免客户端 hydration 后再重排导致首屏闪一下。
+
+const chips = catSources.map((s) => {
+  const name = s.label || s.name;
+  const slug = slugOf(name);
+  return { name, label: name, logo: logoOf(name), href: `/${slug}`, followed: isFollowed(name) };
+});
+
+// 关注的排前面，其余保持原顺序（JS sort 是稳定的）
+chips.sort((a, b) => Number(b.followed) - Number(a.followed));
+
+// 移动端判定放在服务端做：手机首屏就只渲染 3 个源标签（不依赖 hydration，不会抖）
+const ua = Astro.request.headers.get("user-agent") || "";
+const isMobileUA = /Mobile|Android|iPhone|iPod|Windows Phone/i.test(ua);
+
+const title = (() => {
+  // displayName 可能已含“热榜/热搜/排行”（如「知乎热榜」），避免出现“知乎热榜热榜”
+  const hasSuffix = /热榜|热搜|排行|榜$/.test(displayName);
+  const head = hasSuffix ? displayName : `${displayName}热榜`;
+  return `${head} - 实时${displayName}热门榜单`;
+})();
+// 展示名可能已含「热榜/热搜/排行」，避免拼接成“知乎热榜热榜”
+const nameWithSuffix = /热榜|热搜|排行|榜$/.test(displayName)
+  ? displayName
+  : `${displayName}热榜`;
+
+const description = hasData
+  ? `实时${nameWithSuffix}，共 ${items.length} 条。${items
+      .slice(0, 3)
+      .map((i) => i.title)
+      .join("、")}`.slice(0, 118)
+  : `实时${nameWithSuffix}，聚合最新热门内容。榜单每 30 分钟更新一次。`;
+
+const updated = board?.updateTime
+  ? new Date(board.updateTime).toLocaleTimeString("zh-CN", { hour12: false })
+  : "";
+
+// 广告位：复用原站配置（腾讯云返佣素材）
+const ad = SITE.ad;
+// 友情链接：沿用原站配置
+const links = SITE.links;
+---
+
+<Base
+  title={title}
+  description={description}
+  items={items.map((i) => ({ title: i.title, url: i.url }))}
+  categories={categories}
+  activeCategory={activeCategory}
+>
+  {!isKnownSource ? (
+    <div style="text-align:center;padding:80px 20px">
+      <h1 style="font-size:44px;margin:0;color:#ff5722">404</h1>
+      <p style="margin-top:12px;color:var(--n-text-color-3)">这个榜单不存在，可能已经下线</p>
+      <p style="margin-top:24px">
+        <a href="/" style="color:#ff5722">← 回到全部榜单</a>
+      </p>
+    </div>
+  ) : (
+    <HotBoard
+      sources={chips}
+      mobile={isMobileUA}
+      activeSource={sourceName}
+      title={displayName}
+      subtitle={hasData ? "实时热榜 · 每 30 分钟更新" : "数据同步中"}
+      currentLogo={logoOf(displayName)}
+      items={items}
+      risingItems={risingData?.items ?? []}
+      ad={ad}
+      links={links}
+    icp={SITE.icp}
+    police={SITE.police}
+      updateTime={updated}
+      client:load
+    />
+  )}
+</Base>

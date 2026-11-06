@@ -1,0 +1,93 @@
+---
+/**
+ * 首页：默认展示「综合」分类的聚合榜。
+ * 支持 ?cat=xxx 切分类；?r=<ts> 强刷。
+ */
+import Base from "../layouts/Base.astro";
+import HotBoard from "../components/HotBoard.vue";
+import { getSources, getSourceBoard, getRising, slugOf, logoOf, categoriesWithFollow, FOLLOW_CATEGORY } from "../lib/api";
+import SITE from "../config/site";
+
+const catParam = Astro.url.searchParams.get("cat") || "";
+
+const [sourcesData, risingData] = await Promise.all([getSources(), getRising(8, 0)]);
+
+// 关注源：读 cookie（设置页写入时镜像了一份）。
+// ⚠️ 必须定义在 categories / catSources 之前，它们都要用。
+let followedList: string[] = [];
+try {
+  const rawCookie = Astro.cookies.get("hb_followed")?.value ?? "";
+  followedList = rawCookie ? JSON.parse(decodeURIComponent(rawCookie)) : [];
+} catch {
+  followedList = [];
+}
+const isFollowed = (n: string) => followedList.includes(n);
+
+const baseCategories = sourcesData?.categories ?? [];
+const categories = categoriesWithFollow(baseCategories, followedList.length > 0);
+const activeCategory =
+  catParam && categories.includes(catParam) ? catParam : categories[0] || "综合";
+
+// 当前分类下的源；「关注」分类是跨分类取所有被关注的源
+const allSrc = sourcesData?.sources ?? [];
+const catSources =
+  activeCategory === FOLLOW_CATEGORY
+    ? allSrc.filter((s) => followedList.includes(s.label || s.name))
+    : allSrc.filter((s) => s.category === activeCategory);
+
+const chips = catSources.map((s) => {
+  const name = s.label || s.name;
+  const slug = slugOf(name);
+  return { name, label: name, logo: logoOf(name), href: `/${slug}`, followed: isFollowed(name) };
+});
+
+// 关注的排前面，其余保持原顺序（JS sort 是稳定的）
+chips.sort((a, b) => Number(b.followed) - Number(a.followed));
+
+// 首页默认展示当前分类的第一个源
+const firstSrc = catSources[0];
+const defaultName = firstSrc ? firstSrc.label || firstSrc.name : "";
+
+// 榜单数据
+const board = defaultName ? await getSourceBoard(defaultName) : null;
+const items = board?.data ?? [];
+
+// 广告位：复用原站配置（腾讯云返佣素材）
+const ad = SITE.ad;
+
+// 友情链接：沿用原站配置
+const links = SITE.links;
+
+const updated = board?.updateTime
+  ? new Date(board.updateTime).toLocaleTimeString("zh-CN", { hour12: false })
+  : "";
+// 移动端判定放在服务端：手机首屏就只渲染 3 个源标签（不依赖 hydration，不会抖）
+const ua = Astro.request.headers.get("user-agent") || "";
+const isMobileUA = /Mobile|Android|iPhone|iPod|Windows Phone/i.test(ua);
+
+---
+
+<Base
+  title="热辣榜 - 实时聚合全网热点榜单"
+  description={`实时聚合 ${sourcesData?.sources?.length ?? 68} 个站点的热门榜单：知乎、微博、百度、抖音、B站等，一页看完全网热点。`}
+  items={items.map((it) => ({ title: it.title, url: it.url }))}
+  categories={categories}
+  activeCategory={activeCategory}
+>
+  <HotBoard
+    mobile={isMobileUA}
+    sources={chips}
+    activeSource={defaultName}
+    title={board?.title || defaultName || activeCategory}
+    subtitle={`${activeCategory}热榜`}
+    currentLogo={defaultName ? logoOf(defaultName) : ""}
+    items={items}
+    risingItems={risingData?.items ?? []}
+    ad={ad}
+    links={links}
+    icp={SITE.icp}
+    police={SITE.police}
+    updateTime={updated}
+    client:load
+  />
+</Base>

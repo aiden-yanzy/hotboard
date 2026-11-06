@@ -1,0 +1,85 @@
+---
+/** 全站聚合热点 */
+import Base from "../layouts/Base.astro";
+import HotBoard from "../components/HotBoard.vue";
+import { getSourceBoard, getSources, getRising, slugOf, logoOf, categoriesWithFollow, FOLLOW_CATEGORY } from "../lib/api";
+import SITE from "../config/site";
+
+const catParam = Astro.url.searchParams.get("cat") || "";
+
+const [known, risingData] = await Promise.all([getSources(), getRising(8, 0)]);
+
+const baseCategories = known?.categories ?? [];
+// 关注源（⚠️ 必须在 categories / catSources 之前定义）
+let followedList: string[] = [];
+try {
+  const rawCookie = Astro.cookies.get("hb_followed")?.value ?? "";
+  followedList = rawCookie ? JSON.parse(decodeURIComponent(rawCookie)) : [];
+} catch {
+  followedList = [];
+}
+const isFollowed = (n: string) => followedList.includes(n);
+
+const categories = categoriesWithFollow(baseCategories, followedList.length > 0);
+const sources = known?.sources ?? [];
+const activeCategory =
+  catParam && categories.includes(catParam) ? catParam : categories[0] || "综合";
+
+const board = await getSourceBoard(`agg:${activeCategory}`);
+const items = board?.data ?? [];
+
+const catSources = sources.filter((s) => s.category === activeCategory);
+
+// 原版 chips 只含具体源，不含聚合项
+// 关注源置顶：读 cookie（设置页写入时镜像了一份），服务端排好序再输出，
+// 避免客户端 hydration 后再重排导致首屏闪一下。
+
+const chips = catSources.map((s) => {
+  const name = s.label || s.name;
+  const slug = slugOf(name);
+  return { name, label: name, logo: logoOf(name), href: `/${slug}`, followed: isFollowed(name) };
+});
+
+// 关注的排前面，其余保持原顺序（JS sort 是稳定的）
+chips.sort((a, b) => Number(b.followed) - Number(a.followed));
+
+const updated = board?.updateTime
+  ? new Date(board.updateTime).toLocaleTimeString("zh-CN", { hour12: false })
+  : "";
+
+const catCount = sources.filter((s) => s.category === activeCategory).length;
+
+// 广告位：复用原站配置（腾讯云返佣素材）
+const ad = SITE.ad;
+// 友情链接：沿用原站配置
+const links = SITE.links;
+// 移动端判定放在服务端：手机首屏就只渲染 3 个源标签（不依赖 hydration，不会抖）
+const ua = Astro.request.headers.get("user-agent") || "";
+const isMobileUA = /Mobile|Android|iPhone|iPod|Windows Phone/i.test(ua);
+
+---
+
+<Base
+  title="全站热点 - 各平台热榜聚合"
+  description={`聚合全部 ${items.length} 条全网热点，来自知乎、微博、百度、抖音等 ${sources.length} 个平台。`}
+  items={items.map((it) => ({ title: it.title, url: it.url }))}
+  categories={categories}
+  activeCategory={activeCategory}
+>
+  <HotBoard
+    mobile={isMobileUA}
+    sources={chips}
+    activeSource={`agg:${activeCategory}`}
+    title={`全站${activeCategory}`}
+    subtitle={`聚合 ${catCount || sources.length} 个站点的热点`}
+    currentLogo=""
+    items={items}
+    risingItems={risingData?.items ?? []}
+    ad={ad}
+    links={links}
+    icp={SITE.icp}
+    police={SITE.police}
+    updateTime={updated}
+    client:load
+  />
+</Base>

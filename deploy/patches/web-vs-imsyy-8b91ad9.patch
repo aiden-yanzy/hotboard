@@ -1,0 +1,2168 @@
+diff --git a/.env b/.env
+index dec51eb..d0a2e25 100644
+--- a/.env
++++ b/.env
+@@ -1,9 +1,4 @@
+-# 全局 API 地址
+-# VITE_GLOBAL_API="http://localhost:6688"
+-VITE_GLOBAL_API="https://api-hot.imsyy.top"
+-
+-# ICP 备案号
+-VITE_ICP = "豫ICP备2022018134号-1"
+-
+-# 全局目录
+-VITE_DIR = "/"
+\ No newline at end of file
++# 全局 API 地址：指向我们本机已跑的 DailyHotApi（前端只打自己的服务，不打源站）
++VITE_GLOBAL_API="http://10.144.144.23:6700"
++VITE_ICP=""
++VITE_DIR="/"
+diff --git a/public/logo/douban-movie.png b/public/logo/douban-movie.png
+index da766fa..7543a04 100644
+Binary files a/public/logo/douban-movie.png and b/public/logo/douban-movie.png differ
+diff --git a/public/logo/douyin.png b/public/logo/douyin.png
+index 064e81f..2fe6d3d 100644
+Binary files a/public/logo/douyin.png and b/public/logo/douyin.png differ
+diff --git a/public/logo/genshin.png b/public/logo/genshin.png
+index d9f6746..cb7b620 100644
+Binary files a/public/logo/genshin.png and b/public/logo/genshin.png differ
+diff --git a/public/logo/github.png b/public/logo/github.png
+index dd4776c..979857a 100644
+Binary files a/public/logo/github.png and b/public/logo/github.png differ
+diff --git a/public/logo/honkai.png b/public/logo/honkai.png
+index 1f5626d..1b21820 100644
+Binary files a/public/logo/honkai.png and b/public/logo/honkai.png differ
+diff --git a/public/logo/lol.png b/public/logo/lol.png
+index 034c85f..1fe92a9 100644
+Binary files a/public/logo/lol.png and b/public/logo/lol.png differ
+diff --git a/public/logo/qq-news.png b/public/logo/qq-news.png
+index 1fe4b17..5d25699 100644
+Binary files a/public/logo/qq-news.png and b/public/logo/qq-news.png differ
+diff --git a/public/logo/starrail.png b/public/logo/starrail.png
+index 7acdc6f..ceeac16 100644
+Binary files a/public/logo/starrail.png and b/public/logo/starrail.png differ
+diff --git a/public/logo/zhihu-daily.png b/public/logo/zhihu-daily.png
+index 584629c..d393f77 100644
+Binary files a/public/logo/zhihu-daily.png and b/public/logo/zhihu-daily.png differ
+diff --git a/src/App.vue b/src/App.vue
+index d1617d3..d181289 100644
+--- a/src/App.vue
++++ b/src/App.vue
+@@ -6,7 +6,7 @@
+       :class="store.headerFixed ? 'fixed' : null"
+     >
+       <n-back-top :visibility-height="2" @update:show="backTopChange" />
+-      <Header :class="headerShow ? 'show' : null" />
++      <Header ref="headerRef" :class="headerShow ? 'show' : null" />
+       <main>
+         <router-view v-slot="{ Component }">
+           <keep-alive>
+@@ -16,7 +16,7 @@
+           </keep-alive>
+         </router-view>
+       </main>
+-      <Footer />
++      <!-- 2026-10-12：底部页脚整体移除（用户要求）—— 版权/备案只在右侧栏备案块里保留 -->
+     </n-layout>
+   </Provider>
+ </template>
+@@ -25,7 +25,7 @@
+ import { mainStore } from "@/store";
+ import Provider from "@/components/Provider.vue";
+ import Header from "@/components/Header.vue";
+-import Footer from "@/components/Footer.vue";
++// 2026-10-12：页脚已移除（版权/备案只在右侧栏）
+ 
+ const store = mainStore();
+ 
+@@ -37,14 +37,40 @@ const backTopChange = (val) => {
+   headerShow.value = val;
+ };
+ 
+-onMounted(() => {
+-  store.checkNewsUpdate();
+-  // 写入默认
+-  nextTick(() => {
+-    if (store.newsArr.length === 0) {
+-      store.newsArr = store.defaultNewsArr;
+-    }
+-  });
++// 顶栏高度自适应（2026-10-12：分类菜单进顶栏后高度不固定）
++const headerRef = ref(null);
++let headerRO = null;
++const setHeaderH = () => {
++  if (headerShow.value) return; // 滚动收缩态不测量，避免内容上下跳
++  const el = headerRef.value?.$el;
++  if (!el) return;
++  // 下限 96px 兜底：分类接口还没回来时菜单未渲染，测出来会偏矮
++  const h = Math.max(96, el.offsetHeight);
++  document.documentElement.style.setProperty("--header-h", `${h}px`);
++};
++
++onMounted(async () => {
++  // 优先用 hotboard-api 的源清单（含分类）；失败才走内置清单 + 迁移逻辑
++  const ok = await store.loadSources();
++  if (!ok) {
++    store.checkNewsUpdate();
++    nextTick(() => {
++      if (store.newsArr.length === 0) {
++        store.newsArr = store.defaultNewsArr;
++      }
++    });
++  }
++  nextTick(setHeaderH);
++  window.addEventListener("resize", setHeaderH);
++  if (window.ResizeObserver && headerRef.value?.$el) {
++    headerRO = new ResizeObserver(setHeaderH); // 分类加载/菜单换行 → 重算
++    headerRO.observe(headerRef.value.$el);
++  }
++});
++
++onBeforeUnmount(() => {
++  window.removeEventListener("resize", setHeaderH);
++  if (headerRO) headerRO.disconnect();
+ });
+ </script>
+ 
+@@ -61,7 +87,7 @@ onMounted(() => {
+       left: 0;
+       box-sizing: border-box;
+       &.show {
+-        height: 70px;
++        // 2026-10-12：分类融合进顶栏后仍是单行 → 不再写死高度，由内容 + Header 自身 padding 决定
+         border-bottom: 2px solid var(--n-border-color);
+         background-color: var(--n-color);
+         :deep(section) {
+@@ -82,7 +108,8 @@ onMounted(() => {
+       }
+     }
+     main {
+-      padding: 118px 5vw 0 5vw;
++      // 2026-10-12：顶栏高度由内容决定（分类菜单会换行）→ 用 JS 量出的 --header-h
++      padding: var(--header-h, 156px) 5vw 0 5vw;
+     }
+   }
+   :deep(.n-scrollbar-rail) {
+@@ -95,7 +122,8 @@ onMounted(() => {
+     padding: 0 5vw;
+     max-width: 1800px;
+     margin: 0 auto;
+-    min-height: calc(100vh - 238px);
++    // 2026-10-12：页脚移除后重算（原来 238px = 头部 118 + 页脚 ~120）
++    min-height: calc(100vh - 140px);
+   }
+ }
+ 
+diff --git a/src/api/index.js b/src/api/index.js
+index 2958988..46c9766 100644
+--- a/src/api/index.js
++++ b/src/api/index.js
+@@ -17,3 +17,17 @@ export const getHotLists = (type, isNew = false, params) => {
+     },
+   });
+ };
++
++/**
++ * 获取「热点推荐」（飙升榜）：对比各源最近两批快照，挑名次上升最多的条目
++ * @param {number} limit 每批条数
++ * @param {number} offset 偏移（「换一批」用 nextOffset 递进，后端自动回环）
++ * @returns
++ */
++export const getRising = (limit = 8, offset = 0) => {
++  return axios({
++    method: "GET",
++    url: `/rising`,
++    params: { limit, offset },
++  });
++};
+diff --git a/src/components/Footer.vue b/src/components/Footer.vue
+index e195224..adbc2b7 100644
+--- a/src/components/Footer.vue
++++ b/src/components/Footer.vue
+@@ -1,28 +1,21 @@
+ <template>
+   <footer>
+-    <div class="copyright">
+-      <n-text class="description" v-html="packageJson.description" />
+-      <n-text
+-        class="author"
+-        :depth="3"
+-        v-html="packageJson.author"
+-        @click="jumpLink(packageJson.github)"
+-      />
+-    </div>
+-    <n-text
+-      v-if="icp"
+-      :depth="3"
+-      class="icp"
+-      v-html="icp"
+-      @click="jumpLink('https://beian.miit.gov.cn/')"
+-    />
++    <n-text class="copyright" :depth="3">
++      © {{ year }} {{ siteConfig.siteName }} · {{ siteConfig.slogan }}
++    </n-text>
++    <n-text v-if="icp" :depth="3" class="icp" @click="jumpLink(siteConfig.icp.textLink)">
++      {{ icp }}
++    </n-text>
++    <!-- 2026-10-12：上游出处（DailyHot / imsyy）已移到右侧栏 —— 底部只留本站信息 -->
+   </footer>
+ </template>
+ 
+ <script setup>
+-import packageJson from "@/../package.json";
++import siteConfig from "@/config/site";
+ 
+-const icp = ref(import.meta.env.VITE_ICP ? import.meta.env.VITE_ICP : null);
++const year = new Date().getFullYear();
++// 备案号：优先 site.js，其次 .env 的 VITE_ICP
++const icp = siteConfig.icp.text || import.meta.env.VITE_ICP || null;
+ 
+ // 链接跳转
+ const jumpLink = (url) => {
+@@ -32,7 +25,7 @@ const jumpLink = (url) => {
+ 
+ <style lang="scss" scoped>
+ footer {
+-  height: 100px;
++  height: 88px;
+   padding: 0 5vw;
+   max-width: 1800px;
+   margin: 20px auto 0;
+@@ -40,21 +33,9 @@ footer {
+   flex-direction: column;
+   align-items: center;
+   justify-content: center;
++  gap: 4px;
+   .copyright {
+-    margin-bottom: 4px;
+-    .description {
+-      &::after {
+-        content: "@ Copyright By";
+-        margin: 0 6px;
+-      }
+-    }
+-  }
+-  .author {
+-    cursor: pointer;
+-    transition: all 0.3s;
+-    &:hover {
+-      color: var(--n-code-text-color);
+-    }
++    font-size: 13px;
+   }
+   .icp {
+     font-size: 13px;
+diff --git a/src/components/Header.vue b/src/components/Header.vue
+index 0bf2b61..323aacf 100644
+--- a/src/components/Header.vue
++++ b/src/components/Header.vue
+@@ -8,6 +8,9 @@
+           <n-text :depth="3">汇聚全网热点，热门尽览无余</n-text>
+         </div>
+       </div>
++      <!-- 2026-10-12：分类菜单**融合进顶部菜单栏**（与 logo 同一行，靠左跟随 logo）；日期时间先隐藏 -->
++      <CategoryBar v-if="showCatNav" class="nav-slot" />
++      <!-- 日期时间：先隐藏（用户要求「先隐藏日期和时间看看」）；要恢复把下面注释去掉即可
+       <div class="current-time" v-if="store.timeData">
+         <n-text class="time">{{ store.timeData.time.text }}</n-text>
+         <n-text class="date" :depth="3">
+@@ -23,6 +26,7 @@
+       <div class="current-time" v-else>
+         <n-text class="time">时间获取中</n-text>
+       </div>
++      -->
+       <div class="controls">
+         <n-space justify="end">
+           <n-popover v-if="showRefresh">
+@@ -56,6 +60,14 @@
+             </template>
+             {{ store.siteTheme === "light" ? "深色模式" : "浅色模式" }}
+           </n-popover>
++          <n-popover>
++            <template #trigger>
++              <n-button secondary strong round @click="toggleView">
++                {{ isCards ? "列表" : "卡片" }}
++              </n-button>
++            </template>
++            {{ isCards ? "切换到源列表" : "切换到卡片总览" }}
++          </n-popover>
+           <n-popover>
+             <template #trigger>
+               <n-button secondary strong round @click="router.push('/setting')">
+@@ -99,12 +111,31 @@ import { getCurrentTime } from "@/utils/getTime.js";
+ import { mainStore } from "@/store";
+ import { NText, NIcon } from "naive-ui";
+ import { useRouter } from "vue-router";
++import CategoryBar from "@/components/CategoryBar.vue";
+ 
+ const router = useRouter();
+ const store = mainStore();
+ const timeInterval = ref(null);
+ const showRefresh = ref(false);
+ 
++// 顶栏分类菜单：有分类且不在设置页时显示
++const showCatNav = computed(
++  () => (store.categories || []).length > 0 && router.currentRoute.value?.name !== "setting"
++);
++
++// 「卡片 ↔ 列表」一键切换（2026-10-12）
++const isCards = computed(() => router.currentRoute.value?.name === "cards");
++const toggleView = () => {
++  if (isCards.value) {
++    // 回列表：优先打开上次看的源
++    router.push(
++      store.lastSource ? { path: "/list", query: { type: store.lastSource } } : { path: "/" }
++    );
++  } else {
++    router.push("/cards");
++  }
++};
++
+ // 移动端时间模块
+ const timeRender = () => {
+   return h(
+@@ -151,6 +182,10 @@ const menuOptions = [
+     key: "header-divider",
+     type: "divider",
+   },
++  {
++    label: "切换卡片/列表",
++    key: "view",
++  },
+   {
+     label: "刷新页面",
+     key: "refresh",
+@@ -192,6 +227,8 @@ const menuOptionsSelect = (val) => {
+     store.setSiteTheme(store.siteTheme === "light" ? "dark" : "light");
+   } else if (val === "setting") {
+     router.push("/setting");
++  } else if (val === "view") {
++    toggleView();
+   }
+ };
+ 
+@@ -218,24 +255,42 @@ onBeforeUnmount(() => {
+ 
+ <style lang="scss" scoped>
+ .header {
+-  height: 118px;
+-  display: flex;
+-  flex-direction: row;
+-  align-items: center;
+-  justify-content: center;
+-  padding: 24px 5vw;
++  // 2026-10-12：**不再用 flex 居中**（那会把 n-card 内容盒收缩居中 → 标题看着像居中）；
++  // 分类菜单融合进这一行，日期时间隐藏，所以顶栏还是单行，高度由内容决定
++  padding: 14px 5vw;
+   z-index: 2;
+   top: 0;
+   background-color: transparent;
+   transition: all 0.3s;
++  // 滚动收缩态：行内间距收紧（高度自动收缩）
++  &.show {
++    padding: 9px 5vw;
++  }
+   section {
+     width: 100%;
+-    max-width: 1800px;
++    // 2026-10-12：与内容列（.page 1280px）对齐，宽屏下顶栏不会"跑偏"到内容外面
++    max-width: 1280px;
+     margin: 0 auto;
+     display: grid;
+-    grid-template-columns: repeat(3, 1fr);
++    // logo | 分类菜单（占满剩余）| 操作按钮
++    grid-template-columns: auto minmax(0, 1fr) auto;
++    grid-template-areas: "logo nav controls";
+     align-items: center;
+-    justify-content: space-between;
++    column-gap: 26px;
++    // 分类菜单在中间列，靠左紧贴 logo
++    .nav-slot {
++      grid-area: nav;
++      min-width: 0;
++    }
++    .logo {
++      grid-area: logo;
++    }
++    .controls {
++      grid-area: controls;
++    }
++    .mobile {
++      grid-area: mobile;
++    }
+     .logo {
+       display: flex;
+       flex-direction: row;
+@@ -274,7 +329,13 @@ onBeforeUnmount(() => {
+       display: none;
+     }
+     @media (max-width: 768px) {
+-      display: flex;
++      // 窄屏：logo + 菜单按钮一行，分类菜单换到第二行（横向可滚）
++      grid-template-columns: minmax(0, 1fr) auto;
++      grid-template-areas:
++        "logo mobile"
++        "nav nav";
++      column-gap: 12px;
++      row-gap: 6px;
+       .logo {
+         img {
+           width: 40px;
+diff --git a/src/components/HotList.vue b/src/components/HotList.vue
+index 85b24ef..cf9dcd3 100644
+--- a/src/components/HotList.vue
++++ b/src/components/HotList.vue
+@@ -12,10 +12,14 @@
+       <n-space class="title" justify="space-between">
+         <div class="name">
+           <n-avatar
++            v-if="hotData.logo"
+             class="ico"
+-            :src="`/logo/${hotData.name}.png`"
++            :src="`/logo/${hotData.logo}.png`"
+             fallback-src="/ico/icon_error.png"
+           />
++          <n-avatar v-else class="ico" :style="avatarStyle(hotData.label)">
++            {{ initialOf(hotData.label) }}
++          </n-avatar>
+           <n-text class="name-text">{{ hotData.label }}</n-text>
+         </div>
+         <n-text v-if="hotListData?.type" class="subtitle" :depth="2">
+@@ -139,6 +143,7 @@
+ import { Refresh, More } from "@icon-park/vue-next";
+ import { getHotLists } from "@/api";
+ import { formatTime } from "@/utils/getTime";
++import { avatarStyle, initialOf } from "@/utils/avatar";
+ import { mainStore } from "@/store";
+ import { useRouter } from "vue-router";
+ 
+@@ -344,6 +349,8 @@ onMounted(() => {
+         margin-bottom: 0;
+       }
+ 
++      // 热度不再在卡片里展示（2026-10-12 用户要求：只在源列表页显示热度）
++
+       .num {
+         width: 24px;
+         height: 24px;
+diff --git a/src/router/routes.js b/src/router/routes.js
+index 9734c2a..cc00320 100644
+--- a/src/router/routes.js
++++ b/src/router/routes.js
+@@ -1,11 +1,20 @@
+ const routes = [
+-  // 首页
++  // 启动页（2026-10-12：按设置项渲染 —— 源详情页 List 或 卡片总览 Home）
+   {
+     path: "/",
+     name: "home",
+     meta: {
+       title: "首页",
+     },
++    component: () => import("@/views/StartPage.vue"),
++  },
++  // 卡片总览（固定入口，任何时候都能进）
++  {
++    path: "/cards",
++    name: "cards",
++    meta: {
++      title: "卡片总览",
++    },
+     component: () => import("@/views/Home.vue"),
+   },
+   // 新闻列表
+diff --git a/src/store/index.js b/src/store/index.js
+index 946aecc..1777bc9 100644
+--- a/src/store/index.js
++++ b/src/store/index.js
+@@ -162,15 +162,200 @@ export const mainStore = defineStore("mainData", {
+       timeData: null,
+       // 字体大小
+       listFontSize: 16,
++      // 卡片每行个数（3 或 4；设置页可改）
++      gridCols: 4,
++      // 启动页：「list」= 源详情页（默认，用户要求进站直达详情页）/「cards」= 卡片总览
++      startPage: "list",
++      // 上次看的源 → 详情页默认打开它
++      lastSource: "",
++      // —— 自建扩展：源清单与分类（来自 hotboard-api，见 actions.loadSources）——
++      categories: [],
++      activeCategory: "", // 2026-10-12：移除「全部」→ 载入分类后默认第一个（综合）
++      // 分类聚合项（对标 rebang：综合→全站、科技→热榜科技…，每分类置顶且默认选中）
++      aggregates: [],
++      // 右侧列表当前展示的源（源 id 或聚合项 agg:分类）
++      activeSource: "",
++      sourcesLoaded: false,
++      // 用户对「源」的个人配置（**独立持久化**，与源清单解耦，拉新源不会冲掉）：
++      //   { [源id]: { show?: boolean, followed?: boolean, order?: number } }
++      sourcePrefs: {},
+     };
+   },
+-  getters: {},
++  getters: {
++    // 关注（收藏）的源
++    followedSources(state) {
++      return state.newsArr.filter((it) => it.followed);
++    },
++    followedCount(state) {
++      return state.newsArr.filter((it) => it.followed).length;
++    },
++    // 当前分类下要展示的源（"⭐ 关注"= 只看关注的；其余按分类）
++    visibleSources(state) {
++      const cat = state.activeCategory;
++      return state.newsArr.filter((item) => {
++        if (!item.show) return false;
++        if (!cat) return true; // 分类还没载入 → 先全显示
++        if (cat === "⭐ 关注") return !!item.followed;
++        // 失效分类（如历史遗留的「全部」）→ 不过滤，避免空白页
++        if (!state.categories.includes(cat)) return true;
++        return item.category === cat;
++      });
++    },
++    // 左栏分组：每个分类一组，**组内第一项是该分类的聚合项**（置顶）；另加「⭐ 关注」组
++    sidebarGroups(state) {
++      const groups = [];
++      const fav = state.newsArr.filter((i) => i.followed && i.show !== false);
++      if (fav.length) {
++        groups.push({
++          category: `⭐ 关注 (${fav.length})`,
++          sources: fav.map((f) => ({ name: f.name, label: f.label, logo: f.logo })),
++        });
++      }
++      for (const a of state.aggregates || []) {
++        const members = state.newsArr.filter(
++          (i) => i.category === a.category && i.show !== false
++        );
++        if (!members.length) continue;
++        groups.push({
++          category: a.category,
++          sources: [
++            {
++              name: a.name,
++              label: a.label,
++              category: a.category,
++              aggregate: true,
++              count: members.length,
++            },
++            ...members.map((m) => ({
++              name: m.name,
++              label: m.label,
++              logo: m.logo,
++              category: m.category,
++            })),
++          ],
++        });
++      }
++      // 兜底：接口没给聚合项时，按分类直接从源清单分组
++      if (!groups.length) {
++        const byCat = {};
++        for (const s of state.newsArr) {
++          if (s.show === false) continue;
++          (byCat[s.category || "其他"] = byCat[s.category || "其他"] || []).push({
++            name: s.name,
++            label: s.label,
++            logo: s.logo,
++          });
++        }
++        for (const c of Object.keys(byCat)) groups.push({ category: c, sources: byCat[c] });
++      }
++      return groups;
++    },
++  },
+   actions: {
+-    // 更改系统主题
+-    setSiteTheme(val) {
+-      $message.info(`已切换至${val === "dark" ? "深色模式" : "浅色模式"}`, {
+-        showIcon: false,
++    // 从 hotboard-api 拉源清单（含分类）；失败则回退到内置 defaultNewsArr
++    async loadSources() {
++      try {
++        const res = await fetch(`${import.meta.env.VITE_GLOBAL_API}/sources`);
++        if (!res.ok) throw new Error(`HTTP ${res.status}`);
++        const data = await res.json();
++        const list = (data.sources || []).filter((s) => s.display !== false);
++        if (!list.length) throw new Error("空清单");
++        this.categories = data.categories || [...new Set(list.map((s) => s.category))];
++        // 先按接口顺序给个基准 order，再套用用户配置（个人的排序/显隐/关注都在 sourcePrefs 里）
++        const prefs = this.sourcePrefs || {};
++        this.newsArr = list
++          .map((s, i) => {
++            const p = prefs[s.name] || {};
++            return {
++              label: s.label, // 中文名
++              name: s.name, // hotboard-api 的源 id（前端请求路径）
++              logo: s.key, // /logo/<key>.png 图标（老源才有图）
++              category: s.category || "其他",
++              engine: s.engine,
++              show: p.show !== undefined ? p.show : true,
++              followed: !!p.followed,
++              order: p.order !== undefined ? p.order : 1000 + i, // 用户排过的在前，新源自动排后面
++            };
++          })
++          .sort((a, b) => a.order - b.order);
++        this.sourcesLoaded = true;
++        this.aggregates = data.aggregates || [];
++        // 右侧默认选中：上次选过的（若仍存在）→ 否则**第一个分类的聚合项**（对标 rebang）
++        const valid = new Set([
++          ...this.aggregates.map((a) => a.name),
++          ...this.newsArr.map((s) => s.name),
++        ]);
++        const preferred = this.activeSource || localStorage.getItem("activeSource") || "";
++        this.activeSource =
++          preferred && valid.has(preferred)
++            ? preferred
++            : this.aggregates[0]?.name || this.newsArr[0]?.name || "";
++        const saved = localStorage.getItem("activeCategory");
++        // 2026-10-12：不再有「全部」；默认落到第一个分类（综合）
++        this.activeCategory =
++          saved && (saved === "⭐ 关注" || this.categories.includes(saved))
++            ? saved
++            : this.categories[0] || "";
++        console.log(`源清单已从 hotboard-api 载入：${this.newsArr.length} 个源，分类 ${this.categories.join("/")}`);
++        return true;
++      } catch (e) {
++        console.warn("源清单拉取失败，回退到内置清单", e);
++        this.sourcesLoaded = false;
++        return false;
++      }
++    },
++    setCategory(cat) {
++      this.activeCategory = cat;
++      localStorage.setItem("activeCategory", cat);
++    },
++    // 选中右侧要看的源/聚合项
++    setActiveSource(name) {
++      this.activeSource = name;
++      localStorage.setItem("activeSource", name);
++    },
++    // 记住「上次看的源」→ 启动页为详情页时默认打开它
++    setLastSource(name) {
++      if (name && name !== this.lastSource) this.lastSource = name;
++    },
++    // —— 源的个人配置（关注 / 显隐 / 排序）统一写进 sourcePrefs，再回写到 newsArr ——
++    setPref(name, patch) {
++      const old = this.sourcePrefs[name] || {};
++      this.sourcePrefs = { ...this.sourcePrefs, [name]: { ...old, ...patch } };
++      const it = this.newsArr.find((i) => i.name === name);
++      if (it) Object.assign(it, patch);
++      if (patch.order !== undefined) {
++        this.newsArr = [...this.newsArr].sort((a, b) => a.order - b.order);
++      }
++    },
++    toggleFollow(name) {
++      const it = this.newsArr.find((i) => i.name === name);
++      const next = !(it && it.followed);
++      this.setPref(name, { followed: next });
++      $message.success(next ? `已关注「${it ? it.label : name}」` : `已取消关注「${it ? it.label : name}」`);
++    },
++    setShow(name, val) {
++      this.setPref(name, { show: val });
++    },
++    // 设置页拖拽结束后调用：按新顺序整体写回 order
++    setOrder(names) {
++      const patch = {};
++      names.forEach((n, i) => {
++        patch[n] = { ...(this.sourcePrefs[n] || {}), order: i };
+       });
++      this.sourcePrefs = { ...this.sourcePrefs, ...patch };
++      this.newsArr = [...this.newsArr].sort(
++        (a, b) => (this.sourcePrefs[a.name]?.order ?? 9999) - (this.sourcePrefs[b.name]?.order ?? 9999)
++      );
++      $message.success("排序已保存");
++    },
++    // 恢复默认：清空个人配置（关注/显隐/排序都回到接口默认）
++    resetPrefs() {
++      this.sourcePrefs = {};
++      this.loadSources();
++      $message.success("已恢复默认（关注/显隐/排序）");
++    },
++    // 更改系统主题（2026-10-12：去掉切换时的 $message 提示 —— 每次切主题都弹一条通知是多余的）
++    setSiteTheme(val) {
+       this.siteTheme = val;
+       this.siteThemeAuto = false;
+     },
+@@ -206,9 +391,13 @@ export const mainStore = defineStore("mainData", {
+         "siteTheme",
+         "siteThemeAuto",
+         "newsArr",
++        "sourcePrefs",
+         "linkOpenType",
+         "headerFixed",
+         "listFontSize",
++        "gridCols",
++        "startPage",
++        "lastSource",
+       ],
+     },
+   ],
+diff --git a/src/views/Home.vue b/src/views/Home.vue
+index 1e0b909..f7b5d2c 100644
+--- a/src/views/Home.vue
++++ b/src/views/Home.vue
+@@ -1,26 +1,42 @@
+ <template>
+   <div class="home">
++    <!-- 2026-10-12：分类栏已移到顶栏（Header 里统一渲染，全站一份） -->
+     <!-- <n-alert type="info" :show-icon="false" style="margin-bottom: 20px">
+       站点未完工
+     </n-alert> -->
+     <n-grid
+-      v-if="store.newsArr[0] && store.newsArr.filter((item) => item.show)[0]"
+-      cols="1 560:2 800:3 1100:4 1500:5"
++      v-if="store.visibleSources[0]"
++      :cols="gridCols"
+       :x-gap="24"
+       :y-gap="24"
+     >
+       <n-grid-item
+         class="news-card"
+-        v-for="(item, index) in store.newsArr.filter((item) => item.show)"
+-        :key="item"
++        v-for="(item, index) in store.visibleSources"
++        :key="item.name"
+         :style="{ animationDelay: index / 10 + 0.2 + 's' }"
+       >
+         <HotList :hotData="item" />
+       </n-grid-item>
+     </n-grid>
+     <div class="error" v-else>
+-      <n-divider dashed class="tip"> 此处暂无内容 </n-divider>
++      <n-divider dashed class="tip">
++        {{
++          store.activeCategory === "⭐ 关注"
++            ? "还没有关注的源——去「设置」里点 ★ 关注几个"
++            : "此处暂无内容"
++        }}
++      </n-divider>
+       <n-space justify="center">
++        <n-button
++          v-if="store.activeCategory === '⭐ 关注'"
++          size="large"
++          secondary
++          strong
++          @click="$router.push('/setting')"
++        >
++          去设置
++        </n-button>
+         <n-button size="large" secondary strong @click="reset">
+           出错了？点此重置
+         </n-button>
+@@ -30,11 +46,22 @@
+ </template>
+ 
+ <script setup>
++// 2026-10-10 用户决定：**回退到卡片网格展示，只做到「分类」这一层**
++// （聚合视图/两栏布局暂缓，相关接口在 hotapi 里保留：/agg:<分类>）
+ import { mainStore } from "@/store";
+ import HotList from "@/components/HotList.vue";
++// 2026-10-12：CategoryBar 已移到顶栏（Header）
+ 
+ const store = mainStore();
+ 
++// 每行卡片数：由设置页的 gridCols 生成 naive-ui 的响应式断点字符串
++//   3 → 宽屏最多 3 列；4 → 宽屏最多 4 列（窄屏仍逐级降为 2、1 列）
++const gridCols = computed(() =>
++  Number(store.gridCols) === 3
++    ? "1 560:2 800:3 1100:3 1500:3"
++    : "1 560:2 800:3 1100:4 1500:4"
++);
++
+ // 重置
+ const reset = () => {
+   $dialog.warning({
+diff --git a/src/views/List.vue b/src/views/List.vue
+index 530b2c3..8ca1d93 100644
+--- a/src/views/List.vue
++++ b/src/views/List.vue
+@@ -1,21 +1,45 @@
+ <template>
+-  <div class="list">
+-    <n-space class="type" v-if="store.newsArr[0]">
+-      <n-tag
+-        round
+-        size="large"
+-        class="tag"
+-        v-for="item in store.newsArr.filter((item) => item.show)"
+-        :key="item"
+-        :type="item.name === listType ? 'primary' : 'default'"
+-        @click="changeType(item.name)"
++  <div class="list" :class="store.siteTheme">
++    <!-- 2026-10-12：内容居中 + 两侧留白 + 右侧运营栏（窄屏自动隐藏侧栏） -->
++    <div class="page">
++      <main class="main">
++        <div class="src-bar" v-if="store.visibleSources[0]">
++      <n-space
++        ref="chipsRef"
++        class="type"
++        :class="{ collapsed: overflow && !expanded }"
++        :style="collapsedStyle"
+       >
+-        {{ item.label }}
+-        <template #avatar>
+-          <img :src="`/logo/${item.name}.png`" alt="logo" class="logo" />
+-        </template>
+-      </n-tag>
+-    </n-space>
++        <n-tag
++          round
++          size="medium"
++          class="tag"
++          :class="{ on: item.name === listType }"
++          v-for="item in store.visibleSources"
++          :key="item.name"
++          :type="item.name === listType ? 'primary' : 'default'"
++          @click="changeType(item.name)"
++        >
++          {{ item.label }}
++          <template #avatar>
++            <img
++              v-if="item.logo"
++              :src="`/logo/${item.logo}.png`"
++              alt="logo"
++              class="logo"
++              @error="hideImg"
++            />
++            <span v-else class="letter" :style="avatarStyle(item.label)">
++              {{ initialOf(item.label) }}
++            </span>
++          </template>
++        </n-tag>
++      </n-space>
++      <!-- 超过一行 → 折叠 + 展开按钮（2026-10-12 参考热榜：文案精简为「展开/收起」，居中单独一行） -->
++      <n-button v-if="overflow" text size="small" class="toggle" @click="expanded = !expanded">
++        {{ expanded ? "收起 ▴" : "展开 ▾" }}
++      </n-button>
++    </div>
+     <n-card class="card">
+       <template #header>
+         <Transition name="fade" mode="out-in">
+@@ -27,7 +51,19 @@
+           <template v-else>
+             <div class="header">
+               <div class="logo">
+-                <img :src="`/logo/${listType}.png`" alt="logo" />
++                <img
++                  v-if="currentLogo"
++                  :src="`/logo/${currentLogo}.png`"
++                  alt="logo"
++                  @error="hideImg"
++                />
++                <span
++                  v-else
++                  class="letter big"
++                  :style="avatarStyle(listData?.title || listType)"
++                >
++                  {{ initialOf(listData?.title || listType) }}
++                </span>
+               </div>
+               <div class="name">
+                 <n-text class="title">{{ listData.title }}</n-text>
+@@ -43,6 +79,18 @@
+                   v-html="listData.total"
+                 />
+                 <n-text :depth="3" class="time" v-html="updateTime" />
++                <!-- 2026-10-12：手动刷新（重新拉取最新数据，绕过接口缓存；不用刷整页） -->
++                <n-button
++                  text
++                  size="tiny"
++                  class="refresh"
++                  :class="{ spin: refreshing }"
++                  title="重新拉取最新数据"
++                  @click="refreshList"
++                >
++                  <span class="ico">↻</span>
++                  <span class="txt">{{ refreshing ? "刷新中" : "刷新" }}</span>
++                </n-button>
+               </div>
+             </div>
+           </template>
+@@ -64,74 +112,227 @@
+           <div class="all">
+             <n-list hoverable clickable style="width: 100%">
+               <n-list-item
+-                v-for="(item, index) in listData.data.slice(
+-                  pageNumber * 20 - 20,
+-                  pageNumber * 20
+-                )"
+-                :key="item"
++                v-for="(item, index) in listData.data"
++                :key="item.id + '-' + index"
+                 @click="jumpLink(item)"
+               >
+                 <template #prefix>
+                   <n-text
+                     class="num"
+                     :class="
+-                      index + 1 + (pageNumber - 1) * 20 === 1
++                      index + 1 === 1
+                         ? 'one'
+-                        : index + 1 + (pageNumber - 1) * 20 === 2
++                        : index + 1 === 2
+                         ? 'two'
+-                        : index + 1 + (pageNumber - 1) * 20 === 3
++                        : index + 1 === 3
+                         ? 'three'
+                         : null
+                     "
+                     :depth="2"
+                   >
+-                    {{ index + 1 + (pageNumber - 1) * 20 }}
++                    {{ index + 1 }}
+                   </n-text>
+                 </template>
+-                <div class="text">
+-                  <n-text class="title" v-html="item.title" />
+-                  <n-text
+-                    v-if="item.desc"
+-                    class="desc"
+-                    :depth="3"
+-                    v-html="item.desc"
+-                  />
+-                </div>
+-                <div class="message">
+-                  <div class="hot" v-if="item.hot">
+-                    <n-icon :depth="3" :component="Fire" />
+-                    <n-text class="hot-text" :depth="3" v-html="item.hot" />
++                <!-- 知乎式：左文字（标题/简介/热度）+ 右侧头图，同一行垂直居中 -->
++                <div class="row">
++                  <div class="text">
++                    <n-text class="title" v-html="item.title" />
++                    <n-text
++                      v-if="item.desc"
++                      class="desc"
++                      :depth="3"
++                      v-html="item.desc"
++                    />
++                    <div class="hot" v-if="item.hot">
++                      <FlameIcon :size="14" />
++                      <n-text class="hot-text">{{ formatHeat(item.hot) }}</n-text>
++                    </div>
++                  </div>
++                  <!-- 头图：加载成功才淡入；失败直接整块移除（避免空框闪现） -->
++                  <div class="thumb" v-if="item.cover && !failedCovers[item.id]">
++                    <img
++                      :src="item.cover"
++                      alt=""
++                      loading="lazy"
++                      :class="{ in: loadedCovers[item.id] }"
++                      @load="loadedCovers[item.id] = true"
++                      @error="failedCovers[item.id] = true"
++                    />
+                   </div>
+                 </div>
+               </n-list-item>
+             </n-list>
+-            <n-pagination
+-              class="pagination"
+-              :page-slot="5"
+-              :item-count="listData.data.length"
+-              :page-sizes="[20]"
+-              v-model:page="pageNumber"
+-            />
++            <!-- 瀑布流：不分页，直接渲染全部（图片 lazy 加载）；到底部给个提示 -->
++            <div class="end-tip" v-if="listData.data.length">
++              已经到底啦 · 共 {{ listData.data.length }} 条
++            </div>
+           </div>
+         </template>
+       </Transition>
+     </n-card>
++      </main>
++
++      <!-- ===== 右侧运营栏（宽屏才显示）===== -->
++      <aside class="side" ref="sideRef">
++        <!-- 广告位 -->
++        <section class="blk ad" :class="ad.theme" v-for="(ad, i) in siteConfig.ads" :key="'ad' + i">
++          <span class="ad-flag">广告</span>
++          <a
++            :class="{ 'has-img': ad.img }"
++            :href="ad.url || 'javascript:void(0)'"
++            :target="ad.url ? '_blank' : '_self'"
++            rel="noreferrer"
++          >
++            <!-- 图片为主体的广告（2026-10-12）：图片贴边，下方留一小行文案 -->
++            <template v-if="ad.img">
++              <img class="ad-img" :src="ad.img" :alt="ad.alt || ad.text || '广告'" />
++              <div v-if="ad.text" class="ad-text">{{ ad.text }}</div>
++            </template>
++            <!-- 纯文字广告（无图片物料时） -->
++            <template v-else>
++              <div class="ad-title">{{ ad.title }}</div>
++              <div class="ad-desc">{{ ad.desc }}</div>
++            </template>
++          </a>
++        </section>
++
++        <!-- 📈 热点推荐（飙升榜）2026-10-12：对比各源最近两批快照挑「名次上升最多」的条目 -->
++        <section class="blk">
++          <div class="blk-title">
++            <span>📈 热点推荐</span>
++            <span
++              class="rf"
++              :class="{ loading: risingLoading }"
++              title="换一批"
++              @click="loadRising(true)"
++            >
++              <span class="ico" :class="{ spin: risingLoading }">↻</span>
++              <span class="txt">换一批</span>
++            </span>
++          </div>
++          <div class="rising" v-if="risingItems.length">
++            <div
++              class="rising-item"
++              v-for="it in risingItems"
++              :key="it.id"
++              @click="openRising(it)"
++            >
++              <!-- 源标签浮在标题**第一行**右侧（对标热榜）：标题过长自然换行绕过它 -->
++              <span class="src">{{ it.sourceLabel }}</span>
++              <div class="t">{{ it.title }}</div>
++            </div>
++          </div>
++          <div v-else class="rising-empty">{{ risingLoading ? "加载中…" : "暂无数据" }}</div>
++        </section>
++
++        <!-- 友情链接 -->
++        <section class="blk" v-if="siteConfig.links.length">
++          <div class="blk-title">🔗 友情链接</div>
++          <div class="links">
++            <a
++              v-for="l in siteConfig.links"
++              :key="l.url"
++              :href="l.url"
++              target="_blank"
++              rel="noreferrer"
++              >{{ l.label }}</a
++            >
++          </div>
++        </section>
++
++        <!-- 备案信息 -->
++        <section class="blk beian">
++          <template v-if="siteConfig.icp.text">
++            <a :href="siteConfig.icp.textLink" target="_blank" rel="noreferrer">{{
++              siteConfig.icp.text
++            }}</a>
++            <a
++              v-if="siteConfig.icp.police"
++              :href="siteConfig.icp.policeLink"
++              target="_blank"
++              rel="noreferrer"
++              >{{ siteConfig.icp.police }}</a
++            >
++          </template>
++          <template v-else>
++            <span class="warn">⚠️ 未备案（公开运营前需完成 ICP 备案）</span>
++          </template>
++          <div class="copyright">
++            © {{ new Date().getFullYear() }} {{ siteConfig.siteName }} ·
++            {{ siteConfig.slogan }}
++          </div>
++          <!-- 上游出处（MIT）从底部移到这里 -->
++          <div class="credit">
++            基于开源项目
++            <a href="https://github.com/imsyy/DailyHot" target="_blank" rel="noreferrer"
++              >DailyHot</a
++            >
++            （<a href="https://github.com/imsyy" target="_blank" rel="noreferrer">imsyy</a
++            >）二次开发
++          </div>
++        </section>
++      </aside>
++    </div>
+   </div>
+ </template>
+ 
+ <script setup>
+-import { Fire } from "@icon-park/vue-next";
++// 2026-10-10 回退：单源列表页恢复为独立页面（卡片网格首页 → 点卡片头部进入本页）
++import FlameIcon from "@/components/FlameIcon.vue";
++// 2026-10-12：分类栏已移到顶栏（components/Header.vue）
+ import { mainStore } from "@/store";
+ import { useRouter } from "vue-router";
+ import { formatTime } from "@/utils/getTime";
+-import { getHotLists } from "@/api";
++import { avatarStyle, initialOf } from "@/utils/avatar";
++import { formatHeat } from "@/utils/format";
++import { getHotLists, getRising } from "@/api";
++import siteConfig from "@/config/site";
+ 
+ const router = useRouter();
+ const store = mainStore();
+ 
++// 头图加载状态：成功才淡入；失败整块移除（解决"空框闪现再消失"的抖动）
++const loadedCovers = reactive({});
++const failedCovers = reactive({});
++
++// 📈 热点推荐（飙升榜）：后端对比各源最近两批快照挑名次上升最多的条目
++const risingItems = ref([]);
++const risingNext = ref(0);
++const risingLoading = ref(false);
++const loadRising = async (next = false) => {
++  if (risingLoading.value) return;
++  risingLoading.value = true;
++  try {
++    const res = await getRising(8, next ? risingNext.value : 0);
++    if (res.code === 200) {
++      risingItems.value = res.items || [];
++      risingNext.value = res.nextOffset || 0;
++    }
++  } catch (e) {
++    console.warn("[rising] 加载失败", e);
++  }
++  risingLoading.value = false;
++};
++const openRising = (it) => {
++  if (it.url) window.open(it.url);
++};
++
++// 右侧栏停靠位（--side-top）：跟页面一起滚，底边到视口底部才钉住
++const sideRef = ref(null);
++const setSideTop = () => {
++  const el = sideRef.value;
++  if (!el) return;
++  const h = el.offsetHeight;
++  const FLOOR = 92; // 顶部收缩后 ~78px + 余量（单行顶栏）
++  const GAP = 24; // 底边留白
++  const anchored = window.innerHeight - h - GAP; // 侧栏比视口高时为负 → 贴底
++  el.style.setProperty("--side-top", `${Math.min(FLOOR, anchored)}px`);
++};
++
+ const updateTime = ref(null);
++// 默认打开的源：URL 指定 > 上次看的 > 清单第一个（启动页为详情页时走这里）
+ const listType = ref(
+-  router.currentRoute.value.query.type || store.newsArr[0].name
++  router.currentRoute.value.query.type || store.lastSource || store.newsArr[0]?.name || ""
+ );
+ const pageNumber = ref(
+   router.currentRoute.value.query.page
+@@ -140,20 +341,57 @@ const pageNumber = ref(
+ );
+ const listData = ref(null);
+ 
+-// 获取热榜数据
+-const getHotListsData = async (name, isNew = false) => {
+-  listData.value = null;
+-  const item = store.newsArr.find((item) => item.name == name)
+-  getHotLists(item.name, isNew, item.params).then((res) => {
+-    console.log(res);
++// 源图标：只有清单里带 logo key（图标文件真实存在）时才用图；否则用文字头像
++const currentLogo = computed(() => {
++  const it = store.newsArr.find((i) => i.name === listType.value);
++  return (it && it.logo) || null;
++});
++
++// 图标 404 时直接隐藏，避免碎图
++const hideImg = (e) => {
++  e.target.style.display = "none";
++};
++
++// 获取热榜数据（瀑布流：一次取满，不再分页）
++//   silent=true：**手动刷新**用 —— 不清空当前列表（避免闪骨架屏），拿到新数据再替换
++let coverSourceKey = ""; // 上一次拉取的源（决定要不要重置封面加载状态）
++const getHotListsData = async (name, isNew = false, silent = false) => {
++  if (!silent) listData.value = null;
++  const item = store.newsArr.find((item) => item.name == name);
++  if (!item) return;
++  // 封面加载状态**只在切换源时重置**：
++  //   同一源刷新时若清空，已缓存的图片不会再触发 load 事件 → 永远停在 opacity:0，
++  //   表现就是"点刷新后封面全没了"（2026-10-12 用户报的 bug）
++  if (coverSourceKey !== name) {
++    Object.keys(loadedCovers).forEach((k) => delete loadedCovers[k]);
++    Object.keys(failedCovers).forEach((k) => delete failedCovers[k]);
++    coverSourceKey = name;
++  }
++  // 注意：要 return 出去，否则 await 立刻返回、"刷新中"只闪一下
++  return getHotLists(item.name, isNew, { ...(item.params || {}), limit: 200 }).then((res) => {
+     if (res.code === 200) {
+       listData.value = res;
++      updateTime.value = formatTime(res.updateTime);
+     } else {
+       $message.error(res.message);
+     }
+   });
+ };
+ 
++// 手动刷新：**只刷当前源**（isNew=true → hotapi 侧 cache=false，绕过接口缓存重新读库）
++//   使用场景：页面在一个源下开了很久没切，数据过时了，手动同步一次库里的最新数据。
++//   注意：**不联动刷新「热点推荐」**（那是另一块内容，用户明确要求不一起刷）
++const refreshing = ref(false);
++const refreshList = async () => {
++  if (refreshing.value || !listType.value) return;
++  refreshing.value = true;
++  try {
++    await getHotListsData(listType.value, true, true);
++  } finally {
++    refreshing.value = false;
++  }
++};
++
+ // 链接跳转
+ const jumpLink = (data) => {
+   if (!data.url || !data.mobileUrl) return $message.error("链接不存在");
+@@ -205,35 +443,570 @@ watch(
+ watch(
+   () => router.currentRoute.value,
+   (val) => {
+-    if (val.name === "list") {
++    if (val.name === "list" && val.query?.type) {
+       listType.value = val.query.type;
+-      pageNumber.value = Number(val.query.page);
++      pageNumber.value = Number(val.query.page || 1);
++      getHotListsData(listType.value);
++      syncSourceWithCategory();
++    }
++  }
++);
++
++// 记住上次看的源（供启动页直接打开）
++watch(listType, (v) => v && store.setLastSource(v));
++
++// 2026-10-12：**切换分类 → 源自动联动**到该分类下的第一个源
++//   （用户："切换分类之后，源应该默认选择分类下的第一个源，现在没有联动，看着很奇怪"）
++//   当前源仍在新分类里就不动它（少打断），不在才切到第一个
++watch(
++  () => store.activeCategory,
++  () => syncSourceWithCategory()
++);
++
++// 源清单载入完成后：若还没定源，用「上次看的」或第一个源
++watch(
++  () => store.sourcesLoaded,
++  (loaded) => {
++    if (loaded && !listType.value) {
++      listType.value = store.lastSource || store.newsArr[0]?.name || "";
+       getHotListsData(listType.value);
++      syncSourceWithCategory();
+     }
+   }
+ );
+ 
++// 保证「正在看的源」一定属于当前分类：不在就切到该分类的**第一个源**
++//   2026-10-12 改口径：以前是"分类反过来跟着源走"（切走分类还显示旧源的榜单，看着很奇怪），
++//   现在**以分类为准** —— 与用户要求（"切换分类之后源默认选分类下第一个源"）一致
++const syncSourceWithCategory = () => {
++  const name = listType.value;
++  if (!name || !store.sourcesLoaded) return;
++  const list = store.visibleSources || [];
++  if (!list.length) return;
++  if (list.some((i) => i.name === name)) return;
++  changeType(list[0].name);
++};
++
++// 源清单异步载入完成后补跑一次
++watch(
++  () => store.sourcesLoaded,
++  (v) => {
++    if (v) syncSourceWithCategory();
++  }
++);
++
++// —— 源 chips：超过一行则折叠，点「展开全部」再展开 ——
++const chipsRef = ref(null);
++const expanded = ref(false);
++const overflow = ref(false);
++const oneRowH = ref(0);
++
++const checkOverflow = async () => {
++  await nextTick();
++  const el = chipsRef.value?.$el || chipsRef.value;
++  const kids = el && el.children ? Array.from(el.children) : [];
++  if (!kids.length) {
++    overflow.value = false;
++    return;
++  }
++  const tops = kids.map((c) => c.offsetTop);
++  const rows = new Set(tops);
++  overflow.value = rows.size > 1; // 有第二行才算"超出一行"
++  const minTop = Math.min(...tops);
++  oneRowH.value =
++    Math.max(...kids.filter((c) => c.offsetTop === minTop).map((c) => c.offsetTop + c.offsetHeight)) -
++    minTop;
++};
++
++const collapsedStyle = computed(() =>
++  overflow.value && !expanded.value ? { maxHeight: oneRowH.value + "px" } : {}
++);
++
++// 分类或源数量变化 → 回到折叠态并重新测量
++watch(
++  () => `${store.activeCategory}|${store.visibleSources.length}`,
++  () => {
++    expanded.value = false;
++    checkOverflow();
++  }
++);
++
++let sideRO = null;
+ onMounted(() => {
+   getHotListsData(listType.value);
++  loadRising(); // 📈 热点推荐（飙升榜）
++  syncSourceWithCategory();
++  checkOverflow();
++  setSideTop(); // 右侧栏停靠位
++  window.addEventListener("resize", checkOverflow);
++  window.addEventListener("resize", setSideTop);
++  // 侧栏高度会变（换一批/友链增减/数据加载）→ 用 ResizeObserver 跟随
++  if (window.ResizeObserver && sideRef.value) {
++    sideRO = new ResizeObserver(setSideTop);
++    sideRO.observe(sideRef.value);
++  }
++});
++
++onBeforeUnmount(() => {
++  window.removeEventListener("resize", checkOverflow);
++  window.removeEventListener("resize", setSideTop);
++  if (sideRO) sideRO.disconnect();
+ });
+ </script>
+ 
+ <style lang="scss" scoped>
+ .list {
++  // ===== 页面骨架：内容居中 + 两侧留白 + 右侧运营栏（2026-10-12）=====
++  .page {
++    display: flex;
++    align-items: flex-start;
++    gap: 22px;
++    max-width: 1280px;
++    margin: 0 auto;
++  }
++  // 窄屏：隐藏右侧栏、去掉留白（内容靠 App.vue 的 5vw padding）
++  @media (max-width: 1100px) {
++    .page {
++      gap: 0;
++    }
++    .side {
++      display: none;
++    }
++  }
++  .main {
++    flex: 1;
++    min-width: 0;
++  }
++  .side {
++    flex: 0 0 280px;
++    width: 280px;
++    display: flex;
++    flex-direction: column;
++    gap: 14px;
++    // 2026-10-12 修：**不再做"独立滚动容器"** —— 之前 max-height + overflow-y:auto
++    // 让右侧栏自带滚动条，页面滚动时它不动（要单独滚），观感很差。
++    // 改成纯 sticky（对标知乎/热榜）：
++    //   ① 侧栏装得下视口 → top 固定 80px：跟着页面滚，滚到头部下方就钉住，内容全可见
++    //   ② 侧栏比视口高   → top = 100vh - 高度 - 24px（可为负）：跟着页面滚到**底边**
++    //      贴住视口底部才钉住
++    //   --side-top 由 JS 按真实高度计算（内容会变：换一批/友链增减）
++    position: sticky;
++    top: var(--side-top, 80px);
++    align-self: flex-start;
++  }
++  .blk {
++    border: 1px solid var(--n-border-color);
++    border-radius: 10px;
++    padding: 12px 14px;
++    background: var(--n-color, #fff);
++    font-size: 13px;
++    .blk-title {
++      font-weight: 700;
++      font-size: 13px;
++      margin-bottom: 10px;
++      opacity: 0.85;
++    }
++  }
++  // 广告位
++  .blk.ad {
++    padding: 0;
++    overflow: hidden;
++    position: relative;
++    // 「广告」角标（《广告法》要求广告可识别）
++    .ad-flag {
++      position: absolute;
++      top: 5px;
++      right: 6px;
++      z-index: 1;
++      font-size: 10px;
++      line-height: 14px;
++      padding: 0 4px;
++      border-radius: 3px;
++      color: var(--n-text-color-3, #999);
++      border: 1px solid var(--n-border-color);
++      background: var(--n-color, #fff);
++      opacity: 0.75;
++      pointer-events: none;
++    }
++    a {
++      display: block;
++      padding: 24px 14px;
++      text-align: center;
++      text-decoration: none;
++      border-radius: 10px;
++      background: linear-gradient(135deg, rgba(24, 144, 255, 0.08), rgba(255, 122, 24, 0.1));
++      transition: filter 0.2s ease;
++      &:hover {
++        filter: brightness(0.97);
++      }
++      // 图片物料版：贴边显示，去掉内边距/底色
++      &.has-img {
++        padding: 0;
++        background: none;
++        border-radius: 0;
++      }
++    }
++    .ad-img {
++      display: block;
++      width: 100%;
++      height: auto;
++    }
++    .ad-text {
++      padding: 7px 0 9px;
++      font-size: 12px;
++      line-height: 1.4;
++      color: var(--n-text-color-3, #999);
++    }
++    // 腾讯云主题（腾讯蓝）
++    &.qcloud {
++      // 图片物料自带底色 → 只给文字版上主题色
++      a:not(.has-img) {
++        background: linear-gradient(135deg, rgba(0, 106, 255, 0.12), rgba(0, 106, 255, 0.18));
++      }
++      .ad-title {
++        color: #0068ff;
++      }
++      .ad-desc {
++        color: #0068ff;
++        opacity: 0.75;
++      }
++    }
++    .ad-title {
++      font-weight: 700;
++      font-size: 14px;
++      color: var(--primary-color, #2080f0);
++    }
++    .ad-desc {
++      margin-top: 4px;
++      font-size: 12px;
++      opacity: 0.6;
++    }
++  }
++  // 推荐榜单
++  .quick {
++    display: flex;
++    flex-direction: column;
++    gap: 2px;
++    .quick-item {
++      display: flex;
++      align-items: center;
++      gap: 8px;
++      padding: 5px 6px;
++      border-radius: 7px;
++      cursor: pointer;
++      transition: background-color 0.2s ease;
++      &:hover {
++        background: rgba(128, 128, 128, 0.12);
++      }
++      &.on {
++        background: rgba(24, 144, 255, 0.14);
++        font-weight: 600;
++      }
++      .lb {
++        overflow: hidden;
++        text-overflow: ellipsis;
++        white-space: nowrap;
++      }
++      .ava {
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        img {
++          width: 16px;
++          height: 16px;
++          border-radius: 4px;
++        }
++        .letter {
++          display: inline-flex;
++          align-items: center;
++          justify-content: center;
++          width: 16px;
++          height: 16px;
++          border-radius: 50%;
++          font-size: 9px;
++          line-height: 1;
++        }
++      }
++    }
++  }
++  // 📈 热点推荐（飙升榜）
++  .rising {
++    display: flex;
++    flex-direction: column;
++    gap: 1px;
++    .rising-item {
++      padding: 7px 6px 8px;
++      border-radius: 7px;
++      cursor: pointer;
++      transition: background-color 0.2s ease;
++      border-bottom: 1px dashed var(--n-border-color);
++      // 包住右侧浮动的源标签，避免溢到下一条
++      overflow: hidden;
++      &:last-child {
++        border-bottom: none;
++      }
++      &:hover {
++        background: rgba(128, 128, 128, 0.12);
++        .t {
++          color: var(--primary-color, #2080f0);
++        }
++      }
++      .t {
++        font-size: 13px;
++        line-height: 1.5;
++        display: -webkit-box;
++        -webkit-line-clamp: 3; // 最多 3 行
++        -webkit-box-orient: vertical;
++        overflow: hidden;
++        transition: color 0.2s ease;
++      }
++      // 源标签：贴标题第一行右侧（float 让标题首行绕排，超长自动换行）
++      .src {
++        float: right;
++        margin: 2px 0 3px 8px;
++        font-size: 12px;
++        line-height: 19px;
++        padding: 0 8px;
++        border-radius: 5px;
++        color: var(--n-text-color-2, #666);
++        background: var(--n-action-color, rgba(128, 128, 128, 0.12));
++        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
++        max-width: 48%;
++        overflow: hidden;
++        text-overflow: ellipsis;
++        white-space: nowrap;
++      }
++    }
++  }
++  .rising-empty {
++    padding: 14px 0;
++    text-align: center;
++    font-size: 12px;
++    opacity: 0.45;
++  }
++  // 「换一批」按钮（图标 + 文字；旋转只作用在图标上）
++  .blk-title {
++    display: flex;
++    align-items: center;
++    justify-content: space-between;
++    .rf {
++      display: inline-flex;
++      align-items: center;
++      gap: 3px;
++      cursor: pointer;
++      font-size: 12px;
++      font-weight: 400;
++      line-height: 1;
++      opacity: 0.6;
++      padding: 3px 6px;
++      border-radius: 6px;
++      transition: all 0.25s ease;
++      user-select: none;
++      &:hover {
++        opacity: 1;
++        background: rgba(128, 128, 128, 0.14);
++      }
++      &.loading {
++        opacity: 0.45;
++        cursor: default;
++      }
++      .ico {
++        display: inline-block;
++        font-size: 14px;
++        &.spin {
++          animation: rfspin 0.8s linear infinite;
++        }
++      }
++    }
++  }
++  @keyframes rfspin {
++    from {
++      transform: rotate(0deg);
++    }
++    to {
++      transform: rotate(360deg);
++    }
++  }
++  // 友链
++  .links {
++    // 2026-10-12 样式优化：小胶囊两列网格（原来是一列纯文字，太素）
++    display: grid;
++    grid-template-columns: 1fr 1fr;
++    gap: 7px;
++    a {
++      display: block;
++      padding: 5px 8px;
++      font-size: 12px;
++      line-height: 1.35;
++      text-align: center;
++      text-decoration: none;
++      color: var(--n-text-color-2, #666);
++      background: var(--n-action-color, rgba(128, 128, 128, 0.08));
++      border: 1px solid var(--n-border-color);
++      border-radius: 6px;
++      box-sizing: border-box; // 本项目无全局 border-box，必须显式声明
++      overflow: hidden;
++      text-overflow: ellipsis;
++      white-space: nowrap;
++      transition: all 0.2s ease;
++      &:hover {
++        color: var(--primary-color, #2080f0);
++        border-color: var(--primary-color, #2080f0);
++        background: rgba(24, 144, 255, 0.08);
++      }
++    }
++  }
++  // 备案 / 版权
++  .blk.beian {
++    display: flex;
++    flex-direction: column;
++    gap: 4px;
++    font-size: 12px;
++    line-height: 1.6;
++    a {
++      opacity: 0.7;
++      text-decoration: none;
++      &:hover {
++        text-decoration: underline;
++      }
++    }
++    .warn {
++      color: #f0a020;
++    }
++    .copyright {
++      opacity: 0.5;
++      margin-top: 2px;
++    }
++    .credit {
++      opacity: 0.42;
++      font-size: 11px;
++      line-height: 1.5;
++    }
++  }
++  // 瀑布流底部提示
++  .end-tip {
++    width: 100%;
++    padding: 18px 0 6px;
++    text-align: center;
++    font-size: 12px;
++    opacity: 0.45;
++  }
++
++  // ===== 深色主题适配（2026-10-12）=====
++  // 交给 naive 的变量在深色下层次是反的（--n-color 比面板更暗 → 胶囊像"挖空的洞"），
++  // 所以深色单独给一套：**面板最暗、胶囊亮一档**（亮在上才有"浮起"的层次）
++  &.dark {
++    // 广告素材是浅色图，深色页面上会"发光"→ 压暗 + 略降饱和
++    .blk.ad {
++      border-color: rgba(255, 255, 255, 0.1);
++      .ad-img {
++        filter: brightness(0.78) saturate(0.9);
++      }
++    }
++    // 源标签面板 + 胶囊
++    .src-bar {
++      background: rgba(255, 255, 255, 0.035);
++      border-color: rgba(255, 255, 255, 0.1);
++    }
++    .type .tag:not(.on) {
++      background-color: rgba(255, 255, 255, 0.07);
++      border: 1px solid rgba(255, 255, 255, 0.14);
++      color: rgba(255, 255, 255, 0.72);
++    }
++    // 热点推荐的源标签（去掉白底阴影，换成淡白叠加）
++    .rising-item .src {
++      background: rgba(255, 255, 255, 0.08);
++      color: rgba(255, 255, 255, 0.7);
++      box-shadow: none;
++    }
++    // 友链胶囊
++    .links a {
++      background: rgba(255, 255, 255, 0.05);
++      border-color: rgba(255, 255, 255, 0.12);
++      color: rgba(255, 255, 255, 0.7);
++    }
++  }
++
++  // 源 chips 行：**带边框的容器整块包起来**（2026-10-12 用户要求：与下方文章列表卡片同一视觉语言）
++  .src-bar {
++    display: flex;
++    flex-wrap: wrap;
++    align-items: flex-start;
++    gap: 8px;
++    width: 100%;
++    margin-bottom: 14px;
++    padding: 12px 14px;
++    border: 1px solid var(--n-border-color);
++    border-radius: 8px;
++    // 2026-10-12：容器用**浅灰面板**（原来跟页面同色，看着跟"散着放"一样）
++    // → 白底胶囊浮在灰面板上，"框起来"的层次才看得出来
++    background: var(--n-action-color, rgba(128, 128, 128, 0.06));
++    box-sizing: border-box;
++  }
++  .toggle {
++    // 2026-10-12：展开/收起居中单独一行（参考热榜，比"挤在右侧 + 长文案"清爽）
++    flex: 0 0 100%;
++    width: 100%;
++    justify-content: center;
++    margin-top: 4px;
++    font-size: 13px;
++    white-space: nowrap;
++    box-sizing: border-box; // 同上：按钮自带左右内边距，不加会被撑出容器
++  }
+   .type {
++    flex: 1;
++    min-width: 0;
+     width: 100%;
++    // 折叠态：只显示一行（高度由 JS 量出的单行高决定）
++    &.collapsed {
++      overflow: hidden;
++      // 2026-10-12：**去掉右侧渐隐（mask）** —— 它按比例淡出右侧 ~16%，
++      // 落在该区间的标签会整块变半透明（用户反馈"纽约时报标签像被一层半透明遮罩盖住"），
++      // 观感像 bug；"还有更多"的提示交给下方的「展开 ▾」按钮，不需要再叠渐隐
++    }
+     .tag {
+       cursor: pointer;
++      // 2026-10-12：源 chips 字号调大一点（仍明显小于顶部分类，保留层级）
++      font-size: 13px;
++      // 参考热榜：未选中 = **白底胶囊**（浮在浅灰面板上）+ 边框（选中的保留主题色高亮）
++      &:not(.on) {
++        background-color: var(--n-color, #fff);
++        border: 1px solid var(--n-border-color);
++        color: var(--n-text-color-2, #666);
++      }
++      &.on {
++        font-weight: 600;
++      }
+       .logo {
+-        height: 22px;
+-        width: 22px;
++        height: 17px;
++        width: 17px;
++        margin-left: 6px;
++      }
++
++      // 没有图标文件的源 → 文字头像（与 .logo 同尺寸）
++      .letter {
++        display: inline-flex;
++        align-items: center;
++        justify-content: center;
++        height: 17px;
++        width: 17px;
+         margin-left: 6px;
++        border-radius: 50%;
++        font-size: 10px;
++        line-height: 1;
+       }
+     }
+   }
+   .card {
+     margin-top: 20px;
+     border-radius: 8px;
++    // 2026-10-12：卡片头部（源图标 + 源名 + 更新时间）与文章列表之间**加分隔线**（对标知乎）
++    //            并整体压缩约 1/4 高度（用户："头感觉有点儿高了，缩小1/4"）
++    :deep(.n-card-header) {
++      border-bottom: 1px solid var(--n-border-color);
++      padding-top: 12px; // naive 默认 19px
++      padding-bottom: 10px; // 原 14px
++    }
+     .fade-enter-active,
+     .fade-leave-active {
+       transition: opacity 0.3s ease-in-out;
+@@ -257,13 +1030,24 @@ onMounted(() => {
+       grid-template-columns: repeat(3, 1fr);
+       align-items: center;
+       justify-content: space-between;
+-      height: 60px;
++      height: 46px; // 原 60px（头部整体缩 1/4）
+       .logo {
+         display: flex;
+         align-items: center;
+         img {
+-          height: 50px;
+-          width: 50px;
++          height: 38px; // 原 50px
++          width: 38px;
++        }
++        // 无图标源的头部文字头像（与 img 同尺寸）
++        .letter.big {
++          display: inline-flex;
++          align-items: center;
++          justify-content: center;
++          height: 38px; // 原 50px
++          width: 38px;
++          border-radius: 50%;
++          font-size: 18px; // 原 24px
++          line-height: 1;
+         }
+       }
+       .name {
+@@ -271,7 +1055,7 @@ onMounted(() => {
+         align-items: center;
+         flex-direction: column;
+         .title {
+-          font-size: 22px;
++          font-size: 18px; // 原 22px
+           font-weight: bold;
+         }
+         .subtitle {
+@@ -292,6 +1076,30 @@ onMounted(() => {
+             margin-right: 6px;
+           }
+         }
++        // 2026-10-12：手动刷新按钮（跟在更新时间后面）
++        .refresh {
++          margin-left: 10px;
++          font-size: 13px;
++          opacity: 0.6;
++          display: inline-flex;
++          align-items: center;
++          gap: 3px;
++          transition: opacity 0.2s ease;
++          &:hover {
++            opacity: 1;
++          }
++          .ico {
++            display: inline-block;
++            font-size: 14px;
++            line-height: 1;
++          }
++          &.spin {
++            opacity: 0.45;
++            .ico {
++              animation: rfspin 0.8s linear infinite;
++            }
++          }
++        }
+       }
+       @media (max-width: 740px) {
+         display: flex;
+@@ -348,32 +1156,63 @@ onMounted(() => {
+           color: #fff;
+         }
+       }
++      // 一行：左文字 + 右头图（垂直居中，知乎式）
++      .row {
++        display: flex;
++        align-items: center;
++        width: 100%;
++        gap: 14px;
++      }
+       .text {
+         display: flex;
+         flex-direction: column;
++        flex: 1;          // 占满剩余宽度 → 把图片挤到最右
++        min-width: 0;     // 长标题可正常换行/截断
+         .title {
+           font-size: 16px;
+           margin-bottom: 4px;
++          word-break: break-word; // 长英文词不撑破布局
+         }
+         .desc {
+           overflow: hidden;
+           font-size: 14px;
+           display: -webkit-inline-box;
+           -webkit-box-orient: vertical;
+-          -webkit-line-clamp: 5;
++          -webkit-line-clamp: 3;
++          word-break: break-word;
+         }
+-      }
+-      .message {
+-        display: flex;
+-        align-items: center;
+-        margin-top: 12px;
++        // 热度跟在简介下方（不再单独占一行/右侧）
+         .hot {
+           display: flex;
+           align-items: center;
++          gap: 3px;
++          margin-top: 6px;
+           font-size: 13px;
+           .hot-text {
+-            margin-left: 4px;
+-            line-height: 0;
++            color: #ff6a00;
++            font-weight: 600;
++            line-height: 1;
++          }
++        }
++      }
++      // 头图缩略图：文字右侧、垂直居中
++      .thumb {
++        display: flex;
++        align-items: center;
++        justify-content: center;
++        flex: 0 0 auto;
++        align-self: center;
++        img {
++          width: 132px;
++          height: 88px;
++          object-fit: cover;
++          border-radius: 8px;
++          // 不再用底色占位：加载中不可见（但占位尺寸稳定，不引起重排），加载完成后淡入；
++          // 加载失败由 v-if 整块移除 → 不再出现"空框闪现又消失"
++          opacity: 0;
++          transition: opacity 0.25s ease;
++          &.in {
++            opacity: 1;
+           }
+         }
+       }
+@@ -387,6 +1226,10 @@ onMounted(() => {
+             margin-right: 12px;
+           }
+         }
++        // 窄屏不显示头图（省空间）
++        .thumb {
++          display: none;
++        }
+       }
+     }
+   }
+diff --git a/src/views/Setting.vue b/src/views/Setting.vue
+index 1872765..18a2505 100644
+--- a/src/views/Setting.vue
++++ b/src/views/Setting.vue
+@@ -50,6 +50,24 @@
+         <n-switch v-model:value="headerFixed" :round="false" />
+       </div>
+     </n-card>
++    <n-card class="set-item">
++      <div class="top">
++        <div class="name">
++          <n-text class="text">启动页</n-text>
++          <n-text class="tip" :depth="3"> 打开站点时先看哪个页面 </n-text>
++        </div>
++        <n-select class="set" v-model:value="startPage" :options="startPageOptions" />
++      </div>
++    </n-card>
++    <n-card class="set-item">
++      <div class="top">
++        <div class="name">
++          <n-text class="text">每行卡片数</n-text>
++          <n-text class="tip" :depth="3"> 首页一行显示 3 个或 4 个源卡片 </n-text>
++        </div>
++        <n-select class="set" v-model:value="gridCols" :options="colsOptions" />
++      </div>
++    </n-card>
+     <n-card class="set-item">
+       <div class="top" style="flex-direction: column; align-items: flex-start">
+         <div class="name">
+@@ -84,24 +102,25 @@
+     <n-card class="set-item">
+       <div class="top">
+         <div class="name">
+-          <n-text class="text">榜单排序</n-text>
++          <n-text class="text">数据源（显示 / 关注 / 排序）</n-text>
+           <n-text class="tip" :depth="3">
+-            拖拽以排序，开关用以控制在页面中的显示状态
++            拖拽排序；开关控制是否在首页显示；点 ★ 关注后可在「⭐ 关注」分类里只看关注的源。
++            隐藏或取消关注都<b>不影响后台采集</b>（历史数据继续攒）。
+           </n-text>
+         </div>
+-        <n-popconfirm @positive-click="restoreDefault">
++        <n-popconfirm @positive-click="store.resetPrefs()">
+           <template #trigger>
+             <n-button class="control" size="small"> 恢复默认 </n-button>
+           </template>
+-          确认将排序恢复到默认状态？
++          确认恢复默认？关注、显示状态与排序都会重置（不影响采集）。
+         </n-popconfirm>
+       </div>
+       <draggable
+-        :list="newsArr"
++        :list="localList"
+         :animation="200"
+         class="mews-group"
+-        item-key="order"
+-        @end="saveSoreData()"
++        item-key="name"
++        @end="onDragEnd"
+       >
+         <template #item="{ element }">
+           <n-card
+@@ -109,20 +128,64 @@
+             embedded
+             :content-style="{ display: 'flex', alignItems: 'center' }"
+           >
+-            <div class="desc" :style="{ opacity: element.show ? null : 0.6 }">
+-              <img class="logo" :src="`/logo/${element.name}.png`" alt="logo" />
++            <div class="desc" :style="{ opacity: element.show ? null : 0.55 }">
++              <img
++                v-if="element.logo"
++                class="logo"
++                :src="`/logo/${element.logo}.png`"
++                alt="logo"
++                @error="hideImg"
++              />
++              <span v-else class="letter" :style="avatarStyle(element.label)">
++                {{ initialOf(element.label) }}
++              </span>
+               <n-text class="news-name" v-html="element.label" />
+             </div>
++            <n-button
++              class="star"
++              quaternary
++              circle
++              :title="element.followed ? '取消关注' : '关注'"
++              @click="store.toggleFollow(element.name)"
++            >
++              <template #icon>
++                <!-- 已关注 = 实心星；未关注 = 空心描边（比只改描边颜色显眼得多） -->
++                <svg
++                  viewBox="0 0 24 24"
++                  width="18"
++                  height="18"
++                  :fill="element.followed ? '#f0a020' : 'none'"
++                  :stroke="element.followed ? '#f0a020' : '#9aa0a6'"
++                  stroke-width="2"
++                  stroke-linejoin="round"
++                >
++                  <polygon
++                    points="12 2.6 15 9.2 22.2 10.1 16.9 15 18.3 22.1 12 18.6 5.7 22.1 7.1 15 1.8 10.1 9 9.2"
++                  />
++                </svg>
++              </template>
++            </n-button>
+             <n-switch
+               class="switch"
+               :round="false"
+-              v-model:value="element.show"
+-              @update:value="saveSoreData(element.label, element.show)"
++              :value="element.show"
++              @update:value="(v) => store.setShow(element.name, v)"
+             />
+           </n-card>
+         </template>
+       </draggable>
+     </n-card>
++    <n-h6 prefix="bar"> 更多配置（预留） </n-h6>
++    <n-card class="set-item">
++      <div class="top">
++        <div class="name">
++          <n-text class="text">更多配置项</n-text>
++          <n-text class="tip" :depth="3">
++            后续新增的配置会加在这一区（如：每源显示条数、刷新间隔、涨跌维度、配色主题）。
++          </n-text>
++        </div>
++      </div>
++    </n-card>
+     <n-h6 prefix="bar"> 杂项设置 </n-h6>
+     <n-card class="set-item">
+       <div class="top">
+@@ -148,17 +211,32 @@ import { storeToRefs } from "pinia";
+ import { mainStore } from "@/store";
+ import { useOsTheme } from "naive-ui";
+ import draggable from "vuedraggable";
++import { avatarStyle, initialOf } from "@/utils/avatar";
+ 
+ const store = mainStore();
+ const osThemeRef = useOsTheme();
+-const {
+-  siteTheme,
+-  siteThemeAuto,
++const { siteTheme, siteThemeAuto, newsArr, linkOpenType, headerFixed, listFontSize, gridCols, startPage } =
++  storeToRefs(store);
++
++// 拖拽用的本地副本（store.newsArr 随配置变化会重排，直接绑会打架）
++const localList = ref([]);
++watch(
+   newsArr,
+-  linkOpenType,
+-  headerFixed,
+-  listFontSize,
+-} = storeToRefs(store);
++  (val) => {
++    localList.value = [...val];
++  },
++  { immediate: true, deep: true }
++);
++
++// 拖拽结束 → 把新顺序整体写回 store（落到 sourcePrefs）
++const onDragEnd = () => {
++  store.setOrder(localList.value.map((i) => i.name));
++};
++
++// 图标 404 时隐藏，避免碎图
++const hideImg = (e) => {
++  e.target.style.display = "none";
++};
+ 
+ // 深浅模式
+ const themeOptions = ref([
+@@ -172,6 +250,18 @@ const themeOptions = ref([
+   },
+ ]);
+ 
++// 启动页
++const startPageOptions = [
++  { label: "源详情页（默认）", value: "list" },
++  { label: "卡片总览", value: "cards" },
++];
++
++// 卡片每行个数
++const colsOptions = [
++  { label: "每行 4 个（宽屏）", value: 4 },
++  { label: "每行 3 个（更大卡片）", value: 3 },
++];
++
+ // 榜单跳转
+ const linkOptions = [
+   {
+@@ -192,19 +282,6 @@ const themeAutoOpen = (val) => {
+   }
+ };
+ 
+-// 恢复默认排序
+-const restoreDefault = () => {
+-  newsArr.value = newsArr.value.sort((a, b) => a.order - b.order);
+-  $message.success("恢复默认榜单排序成功");
+-};
+-
+-// 将排序结果写入
+-const saveSoreData = (name = null, open = false) => {
+-  $message.success(
+-    name ? `${name}榜单已${open ? "开启" : "关闭"}` : "榜单排序成功"
+-  );
+-};
+-
+ // 重置数据
+ const reset = () => {
+   if (typeof $timeInterval !== "undefined") clearInterval($timeInterval);
+@@ -291,12 +368,29 @@ const reset = () => {
+             margin-right: 12px;
+           }
+ 
++          // 无图标源 → 文字头像（与 .logo 同尺寸）
++          .letter {
++            display: inline-flex;
++            align-items: center;
++            justify-content: center;
++            width: 40px;
++            height: 40px;
++            margin-right: 12px;
++            border-radius: 50%;
++            font-size: 20px;
++            line-height: 1;
++          }
++
+           .news-name {
+             font-size: 16px;
+           }
+         }
+ 
+         .switch {
++          margin-left: 8px;
++        }
++
++        .star {
+           margin-left: auto;
+         }
+       }

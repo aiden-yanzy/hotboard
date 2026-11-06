@@ -1,0 +1,1148 @@
+/**
+ * 榜单页样式：直接复用从 List.vue 提取的 745 行原版 SCSS（list.scss），
+ * 再补上原版没有的「卡片瀑布流」以及友链/备案块的小样式。
+ *
+ * 前提：页面结构必须是 .list > .page > (.main + .side)，class 名与原版一致。
+ */
+@use "./list.scss";
+@use "./vars.scss";
+
+/* ============ 卡片瀑布流（用户要求：卡片 + 标题 + 摘要）============ */
+.list .page .main .card .all .waterfall {
+  column-count: 2;
+  column-gap: 12px;
+}
+
+@media (max-width: 1000px) {
+  .list .page .main .card .all .waterfall {
+    column-count: 1;
+  }
+}
+
+.wf-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  break-inside: avoid;
+  page-break-inside: avoid;
+  margin-bottom: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--n-border-color);
+  border-radius: 10px;
+  background: var(--n-color);
+  transition: border-color 0.15s, box-shadow 0.15s, transform 0.15s;
+
+  &:hover {
+    border-color: var(--brand);
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.06);
+    transform: translateY(-1px);
+  }
+
+  .wf-rank {
+    flex: 0 0 18px;
+    font-size: 13px;
+    font-variant-numeric: tabular-nums;
+    color: var(--n-text-color-3);
+    text-align: center;
+    padding-top: 1px;
+
+    &.top {
+      color: var(--brand);
+      font-weight: 700;
+    }
+  }
+
+  .wf-body {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .wf-title {
+    font-size: 14px;
+    line-height: 1.45;
+    color: var(--n-text-color);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .wf-desc {
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--n-text-color-3);
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .wf-hot {
+    flex: 0 0 auto;
+    font-size: 11px;
+    color: var(--n-text-color-3);
+    font-variant-numeric: tabular-nums;
+    padding-top: 2px;
+  }
+}
+
+/* ============ 侧栏补充块 ============ */
+.list .side {
+  .more {
+    font-size: 12px;
+    color: var(--n-text-color-3);
+    &:hover {
+      color: var(--brand);
+    }
+  }
+
+  .links {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 12px;
+    font-size: 12px;
+    a {
+      color: var(--n-text-color-3);
+      &:hover {
+        color: var(--brand);
+      }
+    }
+  }
+
+  &.beian,
+  .blk.beian {
+    font-size: 12px;
+    line-height: 1.9;
+    a {
+      display: block;
+      color: var(--n-text-color-3);
+      &:hover {
+        color: var(--brand);
+      }
+    }
+    .tip {
+      margin: 8px 0 0;
+      font-size: 11px;
+      color: var(--n-text-color-3);
+      opacity: 0.8;
+      line-height: 1.6;
+    }
+  }
+}
+
+/* 卡片头部：条数/时间/刷新的紧凑排版 */
+.list .page .main .card .header .data {
+  .total,
+  .time {
+    font-size: 12px;
+    color: var(--n-text-color-3);
+  }
+  .refresh {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    border: none;
+    background: transparent;
+    color: var(--n-text-color-3);
+    font-size: 12px;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 6px;
+    &:hover {
+      color: var(--brand);
+      background: var(--brand-soft);
+    }
+    .ico {
+      display: inline-block;
+      line-height: 1;
+    }
+    &.spin .ico {
+      animation: wf-spin 0.8s linear infinite;
+    }
+  }
+}
+
+@keyframes wf-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* 移动端：侧栏隐藏（原版行为） */
+@media (max-width: 1100px) {
+  .list .side {
+    display: none !important;
+  }
+}
+
+/* 侧栏「换一批」按钮 */
+.list .side .blk-title .swap {
+  border: none;
+  background: transparent;
+  color: var(--n-text-color-3);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  font-weight: 400;
+  transition: all 0.15s;
+  &:hover {
+    color: var(--brand);
+    background: var(--brand-soft);
+  }
+  &.loading {
+    opacity: 0.6;
+    cursor: default;
+  }
+}
+
+/* 无摘要条目占位：与一行摘要等高，避免卡片高矮不齐 */
+.list .page .main .card .all .waterfall .desc-empty {
+  height: 21px;
+}
+
+/* ============ 列表左对齐修复 ============
+   list.scss 里 .all 用了 align-items: center（原本是为了让 .num 排名徽章居中），
+   但它同样把所有直接子元素（列表容器/加载提示/底部提示）一起居中了 ——
+   列表宽度不足时会整体居中，标题看上去就像"居中对齐"。
+   这里让子元素撑满宽度，同时保留 .num 自身的居中效果（.num 是孙元素，不受影响）。
+   实测问题：微博列表标题看起来居中（用户反馈）。 */
+.list .page .main .card .all {
+  align-items: stretch;
+
+  > * {
+    width: 100%;
+  }
+}
+
+/* ============ 去 naive-ui 后补的样式 ============
+   n-space / n-tag / n-list / n-list-item 的尺寸、间距、圆角原来由 naive-ui
+   在客户端运行时注入，换成静态 CSS 后必须自己写全，否则会变成裸元素。 */
+
+/* 源 chips 容器（原来是 n-space） */
+.list .main .src-bar .type {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+/* 源 chip（原来是 n-tag round size=medium） */
+.list .main .src-bar .type .tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 13px 4px 5px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  font-family: inherit;
+  line-height: 1.5;
+  white-space: nowrap;
+
+  .logo {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    object-fit: cover;
+    flex: 0 0 auto;
+  }
+  .letter {
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 11px;
+    font-weight: 700;
+    color: #fff;
+    flex: 0 0 auto;
+  }
+  .tag-label {
+    font-size: 13px;
+  }
+}
+
+/* 展开/收起按钮（原来是 n-button text size=small） */
+.list .main .src-bar .toggle {
+  border: none;
+  background: transparent;
+  color: var(--n-text-color-3);
+  font-family: inherit;
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  white-space: nowrap;
+  flex: 0 0 auto;
+  &:hover {
+    color: var(--brand);
+    background: var(--brand-soft);
+  }
+}
+
+/* 列表容器 + 条目（原来是 n-list / n-list-item） */
+.list .page .main .card .all .hot-list {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+
+  .hot-item {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    padding: 14px 16px;
+    border-bottom: 1px solid var(--n-border-color);
+    cursor: pointer;
+    transition: background-color 0.15s;
+    text-decoration: none;
+    color: inherit;
+
+    &:last-child {
+      border-bottom: none;
+    }
+    &:hover {
+      background-color: var(--n-action-color, rgba(128, 128, 128, 0.06));
+    }
+  }
+}
+
+/* ============ 列表项 flex 修正 ============
+   原版 .row 是 width:100%（那时它在 n-list-item 内部，宽度由 naive 的 prefix 布局算好）。
+   现在 .hot-item 直接由「.num + .row」组成，width:100% 会算错剩余空间，
+   把右侧 .thumb 挤成 0 宽 → 缩略图看不到。改成 flex:1 让它吃掉剩余宽度。 */
+.list .page .main .card .all .hot-list .hot-item {
+  .row {
+    width: auto;
+    flex: 1;
+    min-width: 0;
+  }
+  .num {
+    flex: 0 0 auto;
+  }
+}
+
+/* ============ 表头分割线 + 固定行高（对齐知乎观感）============
+   用户要求：
+     ① 表头（源名/条数/刷新那一栏）和列表之间要有明显分割线，且表头再高一点；
+     ② 每条文章等高：标题 + 摘要 + 热度合计固定 4 行，缺哪部分就用空行补；
+     ③ 标题加粗、最多 2 行，超出打省略号；摘要同样最多 2 行。 */
+.list .page .main .card {
+  /* ① 表头：加高 + 明显的分割线
+     ⚠️ list.scss 里 .card .header 写死了 height: 46px，必须覆盖成 auto 才能加高 */
+  > .header {
+    height: auto;
+    min-height: 64px;
+    padding-top: 14px;
+    padding-bottom: 14px;
+    border-bottom: 2px solid rgba(0, 0, 0, 0.14);
+  }
+}
+
+.list .page .main .card .all .hot-list .hot-item {
+  /* ② 等高：所有条目高度一致，内容多的裁掉、内容少的留白 */
+  .text {
+    height: 100px;      // ≈ 标题2行(48) + 摘要1~2行(21~42) + 热度(18) + 间距
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    justify-content: flex-start;
+  }
+
+  /* ③ 标题：加粗 + 最多两行 + 省略号 */
+  .title {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    font-weight: 700;
+    line-height: 1.5;
+  }
+
+  /* ③ 摘要：最多两行 + 省略号 */
+  .desc {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    margin-top: 4px;
+    line-height: 1.5;
+  }
+
+  /* 没摘要时占位的空行（高度由 flex 自动吃掉） */
+  .desc-empty {
+    flex: 1 1 auto;
+    min-height: 20px;
+  }
+
+  /* 热度永远贴底 → 缺内容时空白自然落在中间，形成"空行"效果 */
+  .hot {
+    margin-top: auto;
+  }
+}
+
+/* 表头分割线：暗色下改用淡白，避免黑线看不见 */
+html.dark .list .page .main .card > .header {
+  border-bottom-color: rgba(255, 255, 255, 0.16);
+}
+
+/* ============ 三处修正 ============
+   ① 数据源标签"先展开再折叠"：SSR 时 JS 还没量行数（overflow=false）→ 输出的是展开态，
+      hydration 后才折叠 → 闪一下。改成 CSS 默认就折叠一行，「展开」只是去掉限制。
+   ② 排名标号要跟标题第一行对齐（之前 .hot-item 用 align-items:center 变成垂直居中了）。
+   ③ 标题/摘要/热度互相遮盖：.text 定高后，标题2行+摘要2行会顶掉热度。
+      解法：热度用 absolute 贴底，正文区域留出它的位置，超出的从下往上裁 → 不会盖住热度。 */
+
+/* ① 标签默认折叠成一行 */
+.list .main .src-bar .type {
+  max-height: 38px;
+  overflow: hidden;
+
+  &.expanded {
+    max-height: none;
+  }
+}
+
+/* ② 标号对齐标题第一行 */
+.list .page .main .card .all .hot-list .hot-item {
+  align-items: flex-start;
+
+  .num {
+    margin-top: 0; // 与标题行高（16px×1.5=24px）等高 → 顶部自然对齐
+  }
+  .row {
+    align-items: flex-start;
+  }
+}
+
+/* ③ 热度贴底 + 正文留位，避免遮盖 */
+.list .page .main .card .all .hot-list .hot-item .text {
+  position: relative;
+  height: 108px;
+  padding-bottom: 26px; // 给热度留出固定位置
+  overflow: hidden;
+
+  .hot {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    margin-top: 0;
+    height: 22px;
+  }
+  // 空行占位不再需要 flex:1（热度已绝对定位）
+  .desc-empty {
+    flex: 0 0 auto;
+    min-height: 0;
+  }
+}
+
+/* ============ 第四轮修正 ============
+   ① 图片一直看不见：.thumb img 是 opacity:0，依赖 @load 加 .in；
+      但 lazy 加载/缓存命中时 @load 不触发 → 永远透明。改成直接可见。
+   ② 表头跳动：min-height + align-items:center 在图片加载前算不出正确高度。
+      改成固定 height，无论内容如何都不变。
+   ③ 标题+摘要互相覆盖：标题2行(48)+摘要2行(42)=90 > 可用高度。
+      参考知乎：标题最多2行，摘要按剩余空间自动降行，两者都用 line-clamp 保证省略号。 */
+
+/* ① 图片直接可见（去掉 opacity 依赖） */
+.list .page .main .card .all .hot-list .hot-item .thumb img {
+  opacity: 1;
+}
+
+/* ② 表头固定高度，不随内容/图片变化 */
+.list .page .main .card > .header {
+  display: flex;
+  align-items: center;
+  height: 64px;
+  min-height: 0;
+  padding-top: 0;
+  padding-bottom: 0;
+  border-bottom: 2px solid rgba(0, 0, 0, 0.14);
+}
+
+/* ③ 文字区：flex 纵向，摘要吃掉剩余空间 */
+.list .page .main .card .all .hot-list .hot-item .text {
+  position: relative;
+  height: 108px;
+  padding-bottom: 26px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+
+  .title {
+    flex: 0 0 auto;
+    max-height: 48px;   // 硬上限 2 行
+  }
+  .desc {
+    flex: 1 1 auto;
+    min-height: 0;
+    margin-top: 4px;
+    overflow: hidden;
+  }
+  .desc-empty {
+    flex: 1 1 auto;
+    min-height: 0;
+  }
+  .hot {
+    position: absolute;
+    left: 0;
+    bottom: 0;
+    height: 22px;
+    margin-top: 0;
+  }
+}
+
+/* ============ 第五轮：彻底消除文字覆盖 ============
+   问题：摘要用了 flex:1 1 auto → 元素被拉伸到容器剩余高度，
+   而 -webkit-line-clamp 只在「高度受限」时才裁剪，被 flex 拉伸后 clamp 失效，
+   于是「…」底下又漏出一行，再被外层 overflow:hidden 硬切。
+
+   解法（关键是「不依赖 JS 也不溢出」）：
+     · CSS 默认：标题 ≤2 行(48px) + 摘要固定 1 行(21px) = 69px < 正文可用 82px，SSR 阶段就安全；
+     · JS 只做增强：标题只有 1 行的条目，加 .desc-2 把摘要放开到 2 行。
+   flex 一律用 0 0 auto，绝不让浏览器拉伸这两个盒子。 */
+.list .page .main .card .all .hot-list .hot-item .text {
+  .title {
+    flex: 0 0 auto;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    max-height: 48px;
+    overflow: hidden;
+  }
+  .desc {
+    flex: 0 0 auto;
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    max-height: 21px;
+    overflow: hidden;
+    line-height: 21px;
+    margin-top: 4px;
+  }
+  /* JS 判定「标题只占 1 行」时才放开到 2 行 */
+  .desc.desc-2 {
+    -webkit-line-clamp: 2;
+    max-height: 42px;
+  }
+  .desc-empty {
+    flex: 0 0 auto;
+    min-height: 21px;
+  }
+}
+
+/* ============ 第六轮：收紧间距 ============
+   用户反馈：标题/摘要/热度之间、以及与上下分割线之间的空白偏大，压紧一点。
+   原先：item padding 上下 14px、.text 108px、标题行高 1.5(24px)、摘要 margin-top 4px。
+   现在：padding 10px、.text 96px、标题行高 22px、摘要 margin-top 2px、行高 20px。
+   算下来：标题2行(44)+摘要1行(20)+2 = 66，正文可用 96-22=74 → 摘要与热度间隔约 8px。 */
+.list .page .main .card .all .hot-list .hot-item {
+  padding-top: 10px;
+  padding-bottom: 10px;
+
+  .text {
+    height: 96px;
+    padding-bottom: 22px;
+  }
+  .title {
+    line-height: 22px;
+    max-height: 44px;   // 2 行
+  }
+  .desc {
+    margin-top: 2px;
+    line-height: 20px;
+    max-height: 20px;   // 1 行
+  }
+  .desc.desc-2 {
+    max-height: 40px;   // 2 行
+  }
+  .hot {
+    height: 20px;
+  }
+}
+
+/* 间距微调：上一轮压太狠（摘要与热度只差 1~2px，几乎贴上）。
+   .text 96px、热度贴底占 20px → 热度顶在 76px 处；摘要底最多到 66px。
+   把 padding-bottom 从 22 调到 26，内容可视区 70px，间隔落在 10px 左右。 */
+.list .page .main .card .all .hot-list .hot-item .text {
+  padding-bottom: 26px;
+}
+
+/* ============ 间距定稿 ============
+   实测发现上一轮 height:96 + padding-bottom:26 → 内容区只有 70px，
+   而「标题1行(22) + 间距 + 摘要2行(42)」需要 72px → 摘要第二行被切掉 2px，
+   这就是「… 底下还漏一行」的真正原因（不是 clamp 失效，是容器装不下）。
+
+   定稿尺寸（按实测反推）：
+     标题 1 行 22px / 2 行 44px（line-height 22px）
+     摘要 1 行 21px / 2 行 42px（line-height 21px）
+     标题→摘要 4px（去掉 title 的 margin-bottom，统一由 desc 的 margin-top 控制）
+     .text 100px - padding-bottom 26 = 内容区 74px ✓ 装得下最多 69px 的内容
+     热度贴底占 22px → 摘要底到热度顶约 9~10px */
+.list .page .main .card .all .hot-list .hot-item {
+  .text {
+    height: 100px;
+    padding-bottom: 26px;
+  }
+  .title {
+    margin-bottom: 0;
+    line-height: 22px;
+    max-height: 44px;
+  }
+  .desc {
+    margin-top: 4px;
+    line-height: 21px;
+    max-height: 21px;
+  }
+  .desc.desc-2 {
+    max-height: 42px;
+  }
+  .hot {
+    height: 22px;
+  }
+}
+
+/* ============ 表头跳动修正 ============
+   .logo 容器没固定尺寸时，源图标（<img>）加载前高度是 0 →
+   表头内容贴顶；图片一到位整块高度变了，视觉上就是「先右上、再跳下来居中」。
+   给容器和图片都定死尺寸，加载前后占位一致。 */
+.list .page .main .card .header {
+  .logo {
+    width: 38px;
+    height: 38px;
+    min-width: 38px;
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+
+    img {
+      width: 38px;
+      height: 38px;
+      object-fit: cover;
+      display: block;
+    }
+  }
+  /* 名称区、数据区也定高，防止文字回流引起的高度变化 */
+  .name {
+    flex: 0 1 auto;
+    min-width: 0;
+  }
+  .data {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+  }
+}
+
+/* ============ 第七轮：三处样式统一 ============
+   ① 折叠/展开按钮原来在标签下方独占一行，改成绝对定位到这一块的右上角；
+   ② 文章列表最外层卡片补圆角可见边框（和侧栏 .blk 保持同一套观感）；
+   ③ 表头下的线原来是 2px 深色，改成和条目之间分隔线完全一致（1px --n-border-color）。 */
+
+/* ① 展开按钮移到右上角 */
+.list .main .src-bar {
+  position: relative;
+  /* 右侧留出按钮宽度，避免标签被按钮盖住 */
+  padding-right: 64px;
+
+  .toggle {
+    position: absolute;
+    top: 0;
+    right: 0;
+    margin: 0;
+  }
+}
+
+/* ② 列表卡片：圆角 + 可见边框，跟侧栏块一致 */
+.list .page .main .card {
+  border: 1px solid var(--n-border-color);
+  border-radius: 10px;
+  background: var(--n-color);
+  overflow: hidden; // 让表头/条目的分隔线不顶出圆角
+}
+
+/* ③ 表头下的线改成与条目分隔线一致 */
+.list .page .main .card > .header {
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+/* 暗色下同样走变量，不需要单独覆盖；上面之前写过 2px 的深色线，这里同步掉 */
+html.dark .list .page .main .card > .header {
+  border-bottom: 1px solid var(--n-border-color);
+}
+
+/* 折叠高度对齐实际一行标签：chip 高约 30px（padding 4+4 + logo 22），
+   之前写 38px 多出 8px 空白，看着像多了一行。 */
+.list .main .src-bar .type {
+  max-height: 32px;
+
+  &.expanded {
+    max-height: none;
+  }
+}
+
+/* ============ 第八轮 ============
+   ① 展开按钮上一版是文字「展开 ▾」+ padding-right:64px，把标签区挤窄了，
+      第二行标签被裁 = 用户说的「覆盖一部分内容」。
+      改成右上角小圆按钮（28px，只有 ▾/▴ 箭头），padding-right 减到 34px。
+   ② 表头左侧留白要和条目编号左边缘对齐（.hot-item padding-left: 16px）。
+   ③ 表头右侧「刷新」按钮要跟缩略图右边缘对齐（.hot-item padding-right: 16px）。 */
+
+/* ① 小圆按钮 */
+.list .main .src-bar {
+  padding-right: 34px;
+
+  .toggle {
+    position: absolute;
+    top: -2px;
+    right: -4px;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid var(--n-border-color);
+    border-radius: 50%;
+    background: var(--n-color);
+    color: var(--n-text-color-3);
+    font-size: 11px;
+    line-height: 1;
+    cursor: pointer;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+    transition: all 0.15s;
+
+    &:hover {
+      color: var(--brand);
+      border-color: var(--brand);
+    }
+  }
+}
+
+/* ②③ 表头左右内边距与条目对齐（条目是 padding: 10px 16px） */
+.list .page .main .card > .header {
+  padding-left: 16px;
+  padding-right: 16px;
+}
+
+/* ============ 第九轮：改成「+N chip」折叠 ============
+   折叠不再靠 max-height 硬切（会切断标签、看似被遮挡），
+   而是「只渲染前 8 个 + 一个 +N chip」，数量由数据决定，天然只有一行。 */
+.list .main .src-bar {
+  /* 恢复左右对称的内边距（之前为放圆钮留了 34px） */
+  padding-right: 14px;
+
+  .type {
+    /* 不再折叠：可见数量已由 visibleSources 控制 */
+    max-height: none;
+    overflow: visible;
+  }
+
+  /* 「+13 ›」/「收起 ‹」：虚线边框区分它是操作而不是数据源 */
+  .type .tag.more {
+    border: 1px dashed var(--n-border-color);
+    color: var(--n-text-color-3);
+    font-weight: 500;
+    /* 这个 chip 没有 logo，左右内边距对称 */
+    padding: 4px 12px;
+    background: transparent;
+
+    &:hover {
+      border-color: var(--brand);
+      border-style: solid;
+      color: var(--brand);
+      background: var(--brand-soft);
+    }
+  }
+}
+
+/* 暗色下虚线别太亮 */
+html.dark .list .main .src-bar .type .tag.more {
+  border-color: rgba(255, 255, 255, 0.18);
+}
+
+
+/* 热度与摘要的间距再收一点：padding-bottom 26 → 22，
+   摘要底到热度顶从 ~10px 降到 ~5px（内容区反而更宽松：74px 装 69px 内容）。 */
+.list .page .main .card .all .hot-list .hot-item .text {
+  padding-bottom: 22px;
+}
+
+/* 已关注源的星标（排在 chips 最前面，带金色星） */
+.list .main .src-bar .type .tag .tag-star {
+  color: #f5a623;
+  font-size: 11px;
+  line-height: 1;
+  flex: 0 0 auto;
+}
+
+/* ============ 模块统一为白色卡片 ============
+   原来 .src-bar 和侧栏 .blk 用的是 --n-action-color（浅灰），
+   在白色页面背景下几乎看不出边界；页面底改浅灰后，模块一律改成白底，
+   边界由「白 vs 浅灰」自然区分，跟知乎/rebang 一个观感。 */
+
+/* 源标签区 */
+.list .main .src-bar {
+  background: var(--n-color);
+  border: 1px solid var(--n-border-color);
+}
+
+/* 侧栏各块（广告/热点推荐/友情链接/备案） */
+.list .side .blk {
+  background: var(--n-color);
+  border: 1px solid var(--n-border-color);
+}
+
+/* 主列表卡片 */
+.list .page .main .card {
+  background: var(--n-color);
+}
+
+/* 设置页的块也统一 */
+.setting-page .blk {
+  background: var(--n-color);
+  border: 1px solid var(--n-border-color);
+}
+
+/* 暗色下模块底统一：list.scss 里给 .src-bar / .blk 额外叠了一层 rgba(255,255,255,.035)，
+   导致同一个页面里模块底出现 38/24/22 三种灰度。全部统一成 --n-color。 */
+html.dark .list .main .src-bar,
+html.dark .list .side .blk,
+html.dark .list .page .main .card,
+html.dark .setting-page .blk {
+  background: var(--n-color);
+  border-color: var(--n-border-color);
+}
+
+/* ============ 侧栏细节调整 ============ */
+
+/* ① 版权/备案/免责声明：去掉白底和边框，直接放在页面灰底上 */
+.list .side .blk.beian {
+  background: transparent;
+  border: none;
+  padding: 4px 2px 0;
+}
+html.dark .list .side .blk.beian {
+  background: transparent;
+  border: none;
+}
+
+/* ② 热点推荐：标号与标题之间留一点空隙（现在写成 "1. 标题"） */
+.list .side .rising .rising-item .rk {
+  margin-right: 6px;
+  flex: 0 0 auto;
+}
+
+/* ③ 换一批按钮：图标 + 文字，loading 时图标转圈 */
+.list .side .blk-title .swap {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+
+  .swap-ico {
+    width: 12px;
+    height: 12px;
+    flex: 0 0 auto;
+    transition: transform 0.3s;
+  }
+  &.loading .swap-ico {
+    animation: hb-spin 0.8s linear infinite;
+  }
+}
+
+@keyframes hb-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ============ 手机端适配（≤740px）============
+   问题：表头 `.card > .header` 写死 height:64px + overflow:visible，
+   而里面 `.name`（源名+副标题）在 375px 下会撑到 93px 高 →
+   直接溢出压住第一条文章（实测 .name 底部 308 > 文章顶部 294）。
+   修法：表头改成 min-height + 高度自适应，源名块允许收缩加省略号。 */
+@media (max-width: 740px) {
+  .list .page .main .card > .header {
+    height: auto;
+    min-height: 56px;
+    padding: 10px 12px;
+    gap: 10px;
+    align-items: center;
+    flex-wrap: nowrap;
+  }
+
+  .list .page .main .card > .header .name {
+    min-width: 0;
+    flex: 1 1 auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+
+    .title {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 15px;
+      line-height: 20px;
+    }
+    .subtitle {
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      font-size: 11px;
+      line-height: 15px;
+    }
+  }
+
+  /* 右侧数据区收紧：手机上只留条数 + 刷新按钮 */
+  .list .page .main .card > .header .data {
+    flex: 0 0 auto;
+    gap: 8px;
+    .time { display: none; }
+  }
+
+  /* 数据源标签更紧凑，减少折行（原来 7 个折 4 行 = 138px） */
+  .src-bar {
+    margin-bottom: 10px;
+    gap: 6px;
+  }
+  .src-bar .chip,
+  .src-bar .tag {
+    height: 28px;
+    font-size: 12px;
+    padding: 0 9px;
+    gap: 4px;
+    .letter { width: 16px; height: 16px; font-size: 10px; line-height: 16px; }
+    .logo { width: 16px; height: 16px; }
+  }
+}
+
+/* ============ 切源/切分类的加载反馈 ============
+   原来 switching 只在 JS 里当排他锁用，界面上毫无反馈：
+   点了别的源，标题变了但列表还是旧内容，用户以为「没刷新」。
+   现在列表半透明 + 表头刷新图标转圈，明确告诉用户「正在换」。 */
+.list .page .main .card .all {
+  transition: opacity 0.15s ease;
+}
+
+.list .page .main .card .all.is-loading {
+  opacity: 0.4;
+  /* 挡住点击，避免加载中重复点同一批条目导致跳错页 */
+  pointer-events: none;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   2026-11-05：移除卡片表头 + 强化数据源选中态
+   ══════════════════════════════════════════════════════════════ */
+
+/* SEO/无障碍用的隐藏标题（表头移除后，页面的 h1 由它承担） */
+.list .main .card .sr-only,
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* 条数 / 更新时间 / 刷新 → 收到 chips 行右侧，不再单独占一行 */
+.list .main .src-bar {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+
+  .type {
+    flex: 1 1 auto;
+    min-width: 0;
+  }
+
+  .meta {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding-top: 3px;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--n-text-color-3);
+    white-space: nowrap;
+
+    .count {
+      font-variant-numeric: tabular-nums;
+    }
+
+    .refresh {
+      width: 26px;
+      height: 26px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 50%;
+      border: 1px solid var(--n-border-color);
+      background: var(--n-color);
+      color: var(--n-text-color-2);
+      font-family: inherit;
+      font-size: 14px;
+      line-height: 1;
+      cursor: pointer;
+      transition: background-color 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+      animation: none;
+
+      &:hover {
+        background: rgba(255, 87, 34, 0.1);
+        border-color: rgba(255, 87, 34, 0.45);
+        color: var(--brand);
+      }
+      &.spin {
+        animation: hb-spin 1s linear infinite;
+      }
+    }
+  }
+}
+
+@keyframes hb-spin {
+  to { transform: rotate(360deg); }
+}
+
+/*
+  选中态：之前只有 `font-weight: 600`，跟未选中的白底胶囊几乎看不出差别。
+  现在改成主色实心 + 白字 + 淡阴影 + 上浮 1px，一眼能看出当前是哪个源。
+*/
+.list .main .src-bar .type .tag.on {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #fff;
+  font-weight: 700;
+  box-shadow: 0 2px 10px rgba(255, 87, 34, 0.35);
+  transform: translateY(-1px);
+
+  .tag-label {
+    color: #fff;
+    font-weight: 700;
+  }
+  .logo,
+  .letter {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85);
+  }
+  .tag-star {
+    color: #fff;
+  }
+}
+
+/* 手机：只留刷新按钮，条数/时间省掉（窄屏放不下，且信息价值低） */
+@media (max-width: 740px) {
+  .list .main .src-bar {
+    gap: 6px;
+  }
+  .list .main .src-bar .meta .count,
+  .list .main .src-bar .meta .upd {
+    display: none;
+  }
+}
+
+/*
+  未选中标签的白底胶囊：list.scss 里那条 `&:not(.on)` 规则实际没生效
+  （实测 background 和 border 都是 transparent，标签像"散着放"）。
+  这里在文件末尾显式补一遍，保证"白底胶囊 + 边框"的层次；
+  选中态见上面的橙色实心规则，两者对比一下就很清楚当前在哪个源。
+*/
+.list .main .src-bar .type .tag:not(.on) {
+  background-color: var(--n-color, #fff);
+  border: 1px solid var(--n-border-color);
+  color: var(--n-text-color-2, #666);
+  font-weight: 400;
+  box-shadow: none;
+  transform: none;
+}
+.list .main .src-bar .type .tag:not(.on):hover {
+  border-color: rgba(255, 87, 34, 0.4);
+  color: var(--brand);
+}
+/* 深色模式：白底换成深色卡片色 */
+html.dark .list .main .src-bar .type .tag:not(.on) {
+  background-color: var(--n-color, #1b1b1f);
+  border-color: var(--n-border-color, #333);
+  color: var(--n-text-color-2, #aaa);
+}
+
+/*
+  手机上的收尾：meta（条数/更新时间/刷新）挤在 chips 右边会把标签压窄，
+  实测刷新按钮会被挤到第三行左下角，凭空多出一片空白（截图复核确认）。
+  手机直接隐藏整块 —— 顶栏本来就有「刷新」圆形按钮，功能不缺。
+*/
+@media (max-width: 740px) {
+  .list .main .src-bar {
+    flex-wrap: nowrap;
+
+    .type {
+      flex: 1 1 100%;
+    }
+
+    .meta {
+      display: none;
+    }
+  }
+}
+
+/* 刷新按钮：做成和源标签同款的小胶囊，跟在 `+N` 后面随标签一起换行，
+   不再单独占一行（桌面上会吊在左下角、手机上留下大片空白）。 */
+.list .main .src-bar .type .tag.refresh-chip {
+  padding: 4px 11px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--n-text-color-2, #666);
+  background-color: var(--n-color, #fff);
+  border: 1px solid var(--n-border-color);
+  font-weight: 400;
+
+  &:hover {
+    color: var(--brand);
+    border-color: rgba(255, 87, 34, 0.45);
+  }
+  &.spin {
+    animation: hb-spin 1s linear infinite;
+  }
+}
+
+html.dark .list .main .src-bar .type .tag.refresh-chip {
+  background-color: var(--n-color, #1b1b1f);
+  border-color: var(--n-border-color, #333);
+  color: var(--n-text-color-2, #aaa);
+}
+
+/*
+  选中胶囊上的图标：给一个白色圆底（而不是只有一圈白色描边）。
+  原因：橙底 + 原色图标，遇到本身就是橙色/浅色的源（微博红、百度浅蓝、部分黑白 logo）
+  会糊在一起。生成 68 套「选中态图标」不划算（还要 × 深浅两套主题 × hover 三态），
+  而图标本身是橙色这个问题照样解决不了。
+  白圆底方案：图标永远落在白底上，原色怎么都清楚；胶囊的橙色选中感完全保留。
+*/
+.list .main .src-bar .type .tag.on {
+  .logo {
+    background: #fff;
+    padding: 1px;
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+    /* 选中时图标略放大一点，视觉重量更配得上实心胶囊 */
+    transform: scale(1.04);
+  }
+  .letter {
+    box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+  }
+}
+
+html.dark .list .main .src-bar .type .tag.on .logo {
+  background: #fff;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+}

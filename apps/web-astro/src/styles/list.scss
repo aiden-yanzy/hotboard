@@ -1,0 +1,747 @@
+.list {
+  // ===== 页面骨架：内容居中 + 两侧留白 + 右侧运营栏（2026-10-12）=====
+  .page {
+    display: flex;
+    align-items: flex-start;
+    gap: 22px;
+    max-width: 1280px;
+    margin: 0 auto;
+  }
+  // 窄屏：隐藏右侧栏、去掉留白（内容靠 App.vue 的 5vw padding）
+  @media (max-width: 1100px) {
+    .page {
+      gap: 0;
+    }
+    .side {
+      display: none;
+    }
+  }
+  .main {
+    flex: 1;
+    min-width: 0;
+  }
+  // 2026-10-22 修 bug：上面 @media 里的 .side{display:none} 被这个 .side{display:flex} 覆盖
+  //   （同优先级、后写的赢）→ 手机上右侧 280px 栏照样占位，正文被挤成 43px。
+  //   解决：把「窄屏隐藏侧栏」放到 .side 定义**之后**再声明一次。
+  @media (max-width: 1100px) {
+    .side {
+      display: none !important;
+    }
+  }
+  .side {
+    flex: 0 0 280px;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    // 2026-10-12 修：**不再做"独立滚动容器"** —— 之前 max-height + overflow-y:auto
+    // 让右侧栏自带滚动条，页面滚动时它不动（要单独滚），观感很差。
+    // 改成纯 sticky（对标知乎/热榜）：
+    //   ① 侧栏装得下视口 → top 固定 80px：跟着页面滚，滚到头部下方就钉住，内容全可见
+    //   ② 侧栏比视口高   → top = 100vh - 高度 - 24px（可为负）：跟着页面滚到**底边**
+    //      贴住视口底部才钉住
+    //   --side-top 由 JS 按真实高度计算（内容会变：换一批/友链增减）
+    position: sticky;
+    top: var(--side-top, 80px);
+    align-self: flex-start;
+  }
+  .blk {
+    border: 1px solid var(--n-border-color);
+    border-radius: 10px;
+    padding: 12px 14px;
+    // 2026-10-13：区块统一用「浅灰面板」底色
+    //（原来跟页面同色 → 多个功能区糊在一起，"分块"看不出来）
+    background: var(--n-action-color, rgba(128, 128, 128, 0.06));
+    font-size: 13px;
+    .blk-title {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-weight: 700;
+      font-size: 13px;
+      opacity: 0.9;
+      margin: -2px 0 10px;
+      padding-bottom: 8px;
+      // 标题与内容之间的分隔线：让"这是哪一块"一眼可见
+      border-bottom: 1px solid var(--n-border-color);
+    }
+  }
+  // 广告位
+  .blk.ad {
+    padding: 0;
+    overflow: hidden;
+    position: relative;
+    // 「广告」角标（《广告法》要求广告可识别）
+    .ad-flag {
+      position: absolute;
+      top: 5px;
+      right: 6px;
+      z-index: 1;
+      font-size: 10px;
+      line-height: 14px;
+      padding: 0 4px;
+      border-radius: 3px;
+      color: var(--n-text-color-3, #999);
+      border: 1px solid var(--n-border-color);
+      background: var(--n-color, #fff);
+      opacity: 0.75;
+      pointer-events: none;
+    }
+    a {
+      display: block;
+      padding: 24px 14px;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 10px;
+      background: linear-gradient(135deg, rgba(24, 144, 255, 0.08), rgba(255, 122, 24, 0.1));
+      transition: filter 0.2s ease;
+      &:hover {
+        filter: brightness(0.97);
+      }
+      // 图片物料版：贴边显示，去掉内边距/底色
+      &.has-img {
+        padding: 0;
+        background: none;
+        border-radius: 0;
+      }
+    }
+    .ad-img {
+      display: block;
+      width: 100%;
+      height: auto;
+    }
+    // 2026-10-13：图片容器（夜间给它叠暗色遮罩；亮色下就是个透明 wrapper）
+    .ad-media {
+      display: block;
+      position: relative;
+    }
+    .ad-text {
+      padding: 7px 0 9px;
+      font-size: 12px;
+      line-height: 1.4;
+      color: var(--n-text-color-3, #999);
+    }
+    // 腾讯云主题（腾讯蓝）
+    &.qcloud {
+      // 图片物料自带底色 → 只给文字版上主题色
+      a:not(.has-img) {
+        background: linear-gradient(135deg, rgba(0, 106, 255, 0.12), rgba(0, 106, 255, 0.18));
+      }
+      .ad-title {
+        color: #0068ff;
+      }
+      .ad-desc {
+        color: #0068ff;
+        opacity: 0.75;
+      }
+    }
+    .ad-title {
+      font-weight: 700;
+      font-size: 14px;
+      color: var(--primary-color, #2080f0);
+    }
+    .ad-desc {
+      margin-top: 4px;
+      font-size: 12px;
+      opacity: 0.6;
+    }
+  }
+  // 推荐榜单
+  .quick {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    .quick-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 5px 6px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      &:hover {
+        background: rgba(128, 128, 128, 0.12);
+      }
+      &.on {
+        background: rgba(24, 144, 255, 0.14);
+        font-weight: 600;
+      }
+      .lb {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      .ava {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        img {
+          width: 16px;
+          height: 16px;
+          border-radius: 4px;
+        }
+        .letter {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          width: 16px;
+          height: 16px;
+          border-radius: 50%;
+          font-size: 9px;
+          line-height: 1;
+        }
+      }
+    }
+  }
+  // 📈 热点推荐（飙升榜）
+  .rising {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    .rising-item {
+      // 2026-10-13：上下间距略增 —— 分隔线要有"留白"才读得出来是分隔，否则像贴着
+      padding: 9px 6px 10px;
+      border-radius: 7px;
+      cursor: pointer;
+      transition: background-color 0.2s ease;
+      // 2026-10-13：原本是 dashed，但在灰面板（区块底色）上对比太低、基本看不见
+      // → 改实线，让它真正起到"每篇文章之间分隔"的作用（深色主题另给一档，见 .dark 段）
+      border-bottom: 1px solid var(--n-border-color);
+      // 包住右侧浮动的源标签，避免溢到下一条
+      overflow: hidden;
+      &:last-child {
+        border-bottom: none;
+      }
+      &:hover {
+        background: rgba(128, 128, 128, 0.12);
+        .t {
+          color: var(--primary-color, #2080f0);
+        }
+      }
+      .t {
+        font-size: 13px;
+        line-height: 1.5;
+        display: -webkit-box;
+        -webkit-line-clamp: 3; // 最多 3 行
+        -webkit-box-orient: vertical;
+        overflow: hidden;
+        transition: color 0.2s ease;
+      }
+      // 源标签：贴标题第一行右侧（float 让标题首行绕排，超长自动换行）
+      .src {
+        float: right;
+        margin: 2px 0 3px 8px;
+        font-size: 12px;
+        line-height: 19px;
+        padding: 0 8px;
+        border-radius: 5px;
+        color: var(--n-text-color-2, #666);
+        background: var(--n-action-color, rgba(128, 128, 128, 0.12));
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+        max-width: 48%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+    }
+  }
+  .rising-empty {
+    padding: 14px 0;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.45;
+  }
+  // 「换一批」按钮（图标 + 文字；旋转只作用在图标上）
+  .blk-title {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    .rf {
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      cursor: pointer;
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 1;
+      opacity: 0.6;
+      padding: 3px 6px;
+      border-radius: 6px;
+      transition: all 0.25s ease;
+      user-select: none;
+      &:hover {
+        opacity: 1;
+        background: rgba(128, 128, 128, 0.14);
+      }
+      &.loading {
+        opacity: 0.45;
+        cursor: default;
+      }
+      .ico {
+        display: inline-block;
+        font-size: 14px;
+        &.spin {
+          animation: rfspin 0.8s linear infinite;
+        }
+      }
+    }
+  }
+  @keyframes rfspin {
+    from {
+      transform: rotate(0deg);
+    }
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  // 友链
+  .links {
+    // 2026-10-12 样式优化：小胶囊两列网格（原来是一列纯文字，太素）
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
+    a {
+      display: block;
+      padding: 5px 8px;
+      font-size: 12px;
+      line-height: 1.35;
+      text-align: center;
+      text-decoration: none;
+      color: var(--n-text-color-2, #666);
+      background: var(--n-action-color, rgba(128, 128, 128, 0.08));
+      border: 1px solid var(--n-border-color);
+      border-radius: 6px;
+      box-sizing: border-box; // 本项目无全局 border-box，必须显式声明
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+      transition: all 0.2s ease;
+      &:hover {
+        color: var(--primary-color, #2080f0);
+        border-color: var(--primary-color, #2080f0);
+        background: rgba(24, 144, 255, 0.08);
+      }
+    }
+  }
+  // 备案 / 版权 —— 2026-10-13：这不是"功能区"，是页脚信息
+  // 因此**去掉卡片外观**（面板底/边框/圆角），只用一条虚线分隔与上方的功能区区分开，
+  // 避免它和「热点推荐」抢同等的视觉权重（之前各区块权重一样 → 看着分块不清）
+  .blk.beian {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 12px;
+    line-height: 1.6;
+    border: none;
+    border-top: 1px dashed var(--n-border-color);
+    border-radius: 0;
+    background: none;
+    padding: 12px 2px 0;
+    a {
+      opacity: 0.7;
+      text-decoration: none;
+      &:hover {
+        text-decoration: underline;
+      }
+    }
+    .warn {
+      color: #f0a020;
+    }
+    .copyright {
+      opacity: 0.5;
+      margin-top: 2px;
+    }
+    .credit {
+      opacity: 0.42;
+      font-size: 11px;
+      line-height: 1.5;
+    }
+  }
+  // 瀑布流底部提示
+  .end-tip {
+    width: 100%;
+    padding: 18px 0 6px;
+    text-align: center;
+    font-size: 12px;
+    opacity: 0.45;
+  }
+
+  // ===== 深色主题适配（2026-10-12）=====
+  // 交给 naive 的变量在深色下层次是反的（--n-color 比面板更暗 → 胶囊像"挖空的洞"），
+  // 所以深色单独给一套：**面板最暗、胶囊亮一档**（亮在上才有"浮起"的层次）
+  //
+  // 2026-11-04：选择器从 `&.dark`（=.list.dark）改成 `html.dark &`（=html.dark .list）。
+  // 原来依赖 Vue 的 isDark 给 .list 加类，但 isDark 在 hydration 后才算出来，
+  // SSR 首屏输出的 .list 没有 dark 类 → 暗色用户会先看到一帧亮色再变暗。
+  // 改成挂 <html class="dark">（Base.astro 的 inline script 在 <head> 里就已加好）→ 首屏即正确。
+  html.dark & {
+    // 2026-10-13：区块面板在深色下显式给一套（别指望 naive 变量，层次会反）
+    .blk {
+      background: rgba(255, 255, 255, 0.035);
+      border-color: rgba(255, 255, 255, 0.1);
+      .blk-title {
+        border-bottom-color: rgba(255, 255, 255, 0.1);
+      }
+    }
+    .blk.beian {
+      background: none;
+      border-color: rgba(255, 255, 255, 0.12);
+    }
+    // 广告素材多为浅色图，深色页面上会"发光"。
+    // 2026-10-13 加强：光靠 filter 压不干净（浅色大面积仍然刺眼）→
+    //   ① 更强的压暗 + 降饱和  ② 叠一层暗色遮罩（只罩图片，不罩下方文案）
+    //   ③ 悬停时遮罩淡出 + 亮度回升，保留点击吸引力
+    .blk.ad {
+      border-color: rgba(255, 255, 255, 0.1);
+      .ad-media::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.26);
+        transition: opacity 0.2s ease;
+        pointer-events: none;
+      }
+      .ad-img {
+        filter: brightness(0.6) saturate(0.78) contrast(0.96);
+        transition: filter 0.2s ease;
+      }
+      a.has-img:hover .ad-media::after {
+        opacity: 0;
+      }
+      a.has-img:hover .ad-img {
+        filter: brightness(0.82) saturate(0.9);
+      }
+    }
+    // 源标签面板 + 胶囊
+    .src-bar {
+      background: rgba(255, 255, 255, 0.035);
+      border-color: rgba(255, 255, 255, 0.1);
+    }
+    .type .tag:not(.on) {
+      background-color: rgba(255, 255, 255, 0.07);
+      border: 1px solid rgba(255, 255, 255, 0.14);
+      color: rgba(255, 255, 255, 0.72);
+    }
+    // 热点推荐的源标签（去掉白底阴影，换成淡白叠加）
+    .rising-item .src {
+      background: rgba(255, 255, 255, 0.08);
+      color: rgba(255, 255, 255, 0.7);
+      box-shadow: none;
+    }
+    // 热点推荐的文章分隔线：深色下 naive 的边框色太暗 → 显式提一档
+    .rising .rising-item {
+      border-bottom-color: rgba(255, 255, 255, 0.12);
+    }
+    // 友链胶囊
+    .links a {
+      background: rgba(255, 255, 255, 0.05);
+      border-color: rgba(255, 255, 255, 0.12);
+      color: rgba(255, 255, 255, 0.7);
+    }
+  }
+
+  // 源 chips 行：**带边框的容器整块包起来**（2026-10-12 用户要求：与下方文章列表卡片同一视觉语言）
+  .src-bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 8px;
+    width: 100%;
+    margin-bottom: 14px;
+    padding: 12px 14px;
+    border: 1px solid var(--n-border-color);
+    border-radius: 8px;
+    // 2026-10-12：容器用**浅灰面板**（原来跟页面同色，看着跟"散着放"一样）
+    // → 白底胶囊浮在灰面板上，"框起来"的层次才看得出来
+    background: var(--n-action-color, rgba(128, 128, 128, 0.06));
+    box-sizing: border-box;
+  }
+  .toggle {
+    // 2026-10-12：展开/收起居中单独一行（参考热榜，比"挤在右侧 + 长文案"清爽）
+    flex: 0 0 100%;
+    width: 100%;
+    justify-content: center;
+    margin-top: 4px;
+    font-size: 13px;
+    white-space: nowrap;
+    box-sizing: border-box; // 同上：按钮自带左右内边距，不加会被撑出容器
+  }
+  .type {
+    flex: 1;
+    min-width: 0;
+    width: 100%;
+    // 折叠态：只显示一行（高度由 JS 量出的单行高决定）
+    &.collapsed {
+      overflow: hidden;
+      // 2026-10-12：**去掉右侧渐隐（mask）** —— 它按比例淡出右侧 ~16%，
+      // 落在该区间的标签会整块变半透明（用户反馈"纽约时报标签像被一层半透明遮罩盖住"），
+      // 观感像 bug；"还有更多"的提示交给下方的「展开 ▾」按钮，不需要再叠渐隐
+    }
+    .tag {
+      cursor: pointer;
+      // 2026-10-12：源 chips 字号调大一点（仍明显小于顶部分类，保留层级）
+      font-size: 13px;
+      // 参考热榜：未选中 = **白底胶囊**（浮在浅灰面板上）+ 边框（选中的保留主题色高亮）
+      &:not(.on) {
+        background-color: var(--n-color, #fff);
+        border: 1px solid var(--n-border-color);
+        color: var(--n-text-color-2, #666);
+      }
+      &.on {
+        font-weight: 600;
+      }
+      .logo {
+        height: 17px;
+        width: 17px;
+        margin-left: 6px;
+      }
+
+      // 没有图标文件的源 → 文字头像（与 .logo 同尺寸）
+      .letter {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        height: 17px;
+        width: 17px;
+        margin-left: 6px;
+        border-radius: 50%;
+        font-size: 10px;
+        line-height: 1;
+      }
+    }
+  }
+  .card {
+    margin-top: 20px;
+    border-radius: 8px;
+    // 2026-10-12：卡片头部（源图标 + 源名 + 更新时间）与文章列表之间**加分隔线**（对标知乎）
+    //            并整体压缩约 1/4 高度（用户："头感觉有点儿高了，缩小1/4"）
+    .n-card-header {
+      border-bottom: 1px solid var(--n-border-color);
+      padding-top: 12px; // naive 默认 19px
+      padding-bottom: 10px; // 原 14px
+    }
+    .fade-enter-active,
+    .fade-leave-active {
+      transition: opacity 0.3s ease-in-out;
+    }
+
+    .fade-enter-from,
+    .fade-leave-to {
+      opacity: 0;
+    }
+    .loading {
+      display: flex;
+      align-items: center;
+    }
+    .n-card__content {
+      @media (max-width: 740px) {
+        padding: 0 12px 12px 12px;
+      }
+    }
+    .header {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      align-items: center;
+      justify-content: space-between;
+      height: 46px; // 原 60px（头部整体缩 1/4）
+      .logo {
+        display: flex;
+        align-items: center;
+        img {
+          height: 38px; // 原 50px
+          width: 38px;
+        }
+        // 无图标源的头部文字头像（与 img 同尺寸）
+        .letter.big {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          height: 38px; // 原 50px
+          width: 38px;
+          border-radius: 50%;
+          font-size: 18px; // 原 24px
+          line-height: 1;
+        }
+      }
+      .name {
+        display: flex;
+        align-items: center;
+        flex-direction: column;
+        .title {
+          font-size: 18px; // 原 22px
+          font-weight: bold;
+        }
+        .subtitle {
+          font-size: 14px;
+        }
+      }
+      .data {
+        display: flex;
+        align-items: center;
+        justify-content: flex-end;
+        font-size: 14px;
+        // 2026-11-04：删掉 ::before「共 」/ ::after「 条 ·」——
+        // 模板已经输出「{{ list.length }} 条」，伪元素会拼成「共 30 条 条 ·」。
+        // 文案统一由模板负责，CSS 不再补字。
+        .total {
+          margin-right: 6px;
+        }
+        // 2026-10-12：手动刷新按钮（跟在更新时间后面）
+        .refresh {
+          margin-left: 10px;
+          font-size: 13px;
+          opacity: 0.6;
+          display: inline-flex;
+          align-items: center;
+          gap: 3px;
+          transition: opacity 0.2s ease;
+          &:hover {
+            opacity: 1;
+          }
+          .ico {
+            display: inline-block;
+            font-size: 14px;
+            line-height: 1;
+          }
+          &.spin {
+            opacity: 0.45;
+            .ico {
+              animation: rfspin 0.8s linear infinite;
+            }
+          }
+        }
+      }
+      @media (max-width: 740px) {
+        display: flex;
+        justify-content: flex-start;
+        .logo {
+          img {
+            width: 32px;
+            height: 32px;
+          }
+        }
+        .name {
+          margin-left: 12px;
+          align-items: flex-end;
+          flex-direction: row;
+          .subtitle {
+            margin-bottom: 3px;
+            margin-left: 8px;
+          }
+        }
+        .data {
+          margin-left: auto;
+        }
+      }
+    }
+    .all {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      .num {
+        width: 24px;
+        height: 24px;
+        min-width: 24px;
+        margin-right: 8px;
+        font-size: 12px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background-color: var(--n-border-color);
+        border-radius: 8px;
+        transition: all 0.3s;
+        &:hover {
+          background-color: var(--n-close-color-hover);
+        }
+        &.one {
+          background-color: #ea444d;
+          color: #fff;
+        }
+        &.two {
+          background-color: #ed702d;
+          color: #fff;
+        }
+        &.three {
+          background-color: #eead3f;
+          color: #fff;
+        }
+      }
+      // 一行：左文字 + 右头图（垂直居中，知乎式）
+      .row {
+        display: flex;
+        align-items: center;
+        width: 100%;
+        gap: 14px;
+      }
+      .text {
+        display: flex;
+        flex-direction: column;
+        flex: 1;          // 占满剩余宽度 → 把图片挤到最右
+        min-width: 0;     // 长标题可正常换行/截断
+        .title {
+          font-size: 16px;
+          margin-bottom: 4px;
+          word-break: break-word; // 长英文词不撑破布局
+        }
+        .desc {
+          overflow: hidden;
+          font-size: 14px;
+          display: -webkit-inline-box;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 3;
+          word-break: break-word;
+        }
+        // 热度跟在简介下方（不再单独占一行/右侧）
+        .hot {
+          display: flex;
+          align-items: center;
+          gap: 3px;
+          margin-top: 6px;
+          font-size: 13px;
+          .hot-text {
+            color: #ff6a00;
+            font-weight: 600;
+            line-height: 1;
+          }
+        }
+      }
+      // 头图缩略图：文字右侧、垂直居中
+      .thumb {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        align-self: center;
+        img {
+          width: 132px;
+          height: 88px;
+          object-fit: cover;
+          border-radius: 8px;
+          // 不再用底色占位：加载中不可见（但占位尺寸稳定，不引起重排），加载完成后淡入；
+          // 加载失败由 v-if 整块移除 → 不再出现"空框闪现又消失"
+          opacity: 0;
+          transition: opacity 0.25s ease;
+          &.in {
+            opacity: 1;
+          }
+        }
+      }
+      .pagination {
+        margin: 20px 0;
+      }
+      @media (max-width: 740px) {
+        .n-list-item {
+          padding: 12px 10px;
+          .n-list-item__prefix {
+            margin-right: 12px;
+          }
+        }
+        // 窄屏不显示头图（省空间）
+        .thumb {
+          display: none;
+        }
+      }
+    }
+  }
+}
